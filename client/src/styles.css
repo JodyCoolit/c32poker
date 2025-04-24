@@ -1,0 +1,27 @@
+/* 全局样式 */
+
+/* 脉动动画 */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
+  }
+  50% {
+    opacity: 0.5;
+    box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
+  }
+}
+
+/* 为进度条和文字添加脉动效果 */
+.pulse-text {
+  animation: pulse 1.5s infinite;
+}
+
+/* 确保显示所有内容 */
+body {
+  overflow-x: hidden;
+} 

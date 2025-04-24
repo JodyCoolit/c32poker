@@ -1,0 +1,64 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+项目架构分析：
+这是一个德州扑克在线游戏系统，采用前后端分离的架构。
+后端架构
+技术栈：
+使用 Python FastAPI 构建 RESTful API 和 WebSocket 通信
+使用 JWT 进行身份验证
+核心模块：
+模型层（src/models/）：
+room.py：定义游戏房间模型，负责房间管理、玩家加入/退出、座位分配等
+game.py：定义德州扑克游戏逻辑，包括发牌、回合管理、玩家行动处理等
+player.py：玩家模型，存储玩家信息和筹码
+card.py 和 deck.py：扑克牌和牌组模型
+API 路由层：
+api_routes.py：用户认证和账户管理
+room_routes.py：房间创建和管理
+game_routes.py：游戏操作和状态管理
+WebSocket 通信：
+websocket_manager.py：管理WebSocket连接和房间内通信
+main.py：提供 WebSocket 端点，处理实时游戏信息交换
+
+一定要注意py的indentation error
+不要过度防御性编程
+
+主要注意的是客户端永远不会主动查询状态!
+进入房间后全部依靠websocket通信，client发送行动，server接受后然后广播给全部玩家。
+debug的时候永远先检查服务器接口，然后检查客户端是否正确收到消息，然后检查客户端是否正确渲染。
+游戏开始前允许的操作：入座，换座，离座，买入。需要注意的时，入座和买入是两个独立的行为。
+游戏开始后允许的操作：下注，过牌，加注，第一个动作前需要从3张牌弃掉一张discard_card。如果已经弃牌了，则允许换座，离座，买入。
+房间里一直允许的操作：查看玩家列表，查看游戏历史，退出房间。
+
+关键功能实现：
+座位管理：
+sit_down, stand_up, change_seat 方法处理玩家在游戏桌的位置
+游戏控制：
+游戏启动/结束，回合管理，玩家操作（下注、跟注、加注、弃牌等）
+
+前端架构
+技术栈：
+React.js 构建用户界面
+WebSocket 实现实时通信
+核心模块：
+服务层（client/src/services/）：
+api.js：封装与后端 RESTful API 的交互
+websocket.js：管理 WebSocket 连接，处理实时游戏事件
+组件层（client/src/components/）：
+游戏组件（Game/）：扑克桌、座位、牌、玩家操作界面等
+认证组件（Auth/）：登录、注册功能
+房间组件（Room/）：房间列表、房间详情等
+关键功能实现：
+游戏界面：虚拟扑克桌、玩家座位布局、牌的展示
+座位交互：入座、站起、换座位, 买入筹码功能
+游戏操作：下注、跟注、加注、弃牌等按钮及逻辑
+实时通信：监听服务器更新，实时反映游戏状态变化
+通信机制
+RESTful API：处理认证、房间管理、非实时游戏操作
+WebSocket：提供实时游戏状态更新、玩家操作广播、聊天功能
+消息类型：game_state, game_update, room_update, player_action, chat 等
+心跳机制维持连接
+重连策略处理连接中断

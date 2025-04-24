@@ -1,0 +1,59 @@
+.player-profit {
+  margin-top: 4px;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.player-profit.positive {
+  color: #4caf50; /* Green for profit */
+}
+
+.player-profit.negative {
+  color: #f44336; /* Red for loss */
+}
+
+.dealer-button {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  color: #000000;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  border: 2px solid #000000;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.player-action-area {
+  margin-top: 4px;
+  min-height: 20px;
+}
+
+.player-action {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  display: inline-block;
+}
+
+.player-card--folded .player-cards {
+  opacity: 0.5;
+}
+
+.player-card--current {
+  border: 2px solid #ffc107; /* Highlight current player */
+}
+
+.player-card--self {
+  border: 2px solid #2196f3; /* Highlight self */
+} 
