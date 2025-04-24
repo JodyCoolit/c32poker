@@ -158,7 +158,7 @@ const CardDealingAnimation = ({
   onAnimationComplete, 
   testMode = false,
   debug = true, // 默认开启调试模式
-  showMarkers = true, // 默认显示位置标记
+  showMarkers = false, // 默认隐藏位置标记
   currentUser = "", // 当前用户的用户名
   gameState = {} // 游戏状态对象
 }) => {

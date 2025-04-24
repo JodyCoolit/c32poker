@@ -194,6 +194,9 @@ const GameTable = () => {
   const [playerHand, setPlayerHand] = useState([]);
   const [maxDiscards, setMaxDiscards] = useState(3); // 默认最多换3张牌
   
+  // 添加状态变量来控制手牌显示
+  const [showPlayerCards, setShowPlayerCards] = useState(false);
+  
   // 在GameTable组件内添加当前玩家轮次计时状态
   const [playerTurnTime, setPlayerTurnTime] = useState({});
   const [currentPlayerTurnInfo, setCurrentPlayerTurnInfo] = useState({

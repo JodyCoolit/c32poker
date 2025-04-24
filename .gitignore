@@ -29,8 +29,11 @@ htmlcov/
 venv/
 ENV/
 .env
+
 # ai误操作安装
 node_modules/
+package.json
+package-lock.json
 
 # 客户端 React 项目忽略文件
 client/node_modules/
