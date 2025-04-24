@@ -1,0 +1,72 @@
+# Python 服务器端忽略文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.venv
+venv/
+ENV/
+.env
+# ai误操作安装
+node_modules/
+
+# 客户端 React 项目忽略文件
+client/node_modules/
+client/.pnp
+client/.pnp.js
+client/coverage/
+client/build/
+client/.DS_Store
+client/.env.local
+client/.env.development.local
+client/.env.test.local
+client/.env.production.local
+client/npm-debug.log*
+client/yarn-debug.log*
+client/yarn-error.log*
+
+# IDE 相关文件
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志文件
+*.log
+logs/
+
+# 数据库文件
+*.sqlite
+*.sqlite3
+*.db
+
+# 临时文件
+tmp/
+temp/
+
+# 根目录 node_modules
+node_modules/ 
