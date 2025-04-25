@@ -45,7 +45,8 @@ class Game:
                 self.players[position]["has_discarded"] = False
                 self.players[position]["discarded_card"] = None
             
-            self.active_players = [p["position"] for p in players_info] # sorted?
+            # 按照位置从小到大排序active_players
+            self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0])
             self.pot = 0
             self.current_bet = 0
             self.community_cards = []
@@ -53,7 +54,9 @@ class Game:
             self.dealer_idx = random.choice(self.active_players)
             self.current_player_idx = self.dealer_idx
             self.last_player_to_raise = None
-            self.player_acted = [False] * len(players_info)
+            
+            # 使用字典初始化 player_acted，键为玩家位置，只包含筹码大于0的玩家
+            self.player_acted = {p["position"]: False for p in players_info if p.get("chips", 0) > 0}
             
             # 初始化评估器和历史记录
             self.hand_evaluator = HandEvaluator()
@@ -222,7 +225,9 @@ class Game:
             self.current_bet = 0
             self.community_cards = []
             self.betting_round = 0
-            self.player_acted = [False] * len(self.players)
+            
+            # 重置玩家行动状态为字典，只包含筹码大于0的玩家
+            self.player_acted = {position: False for position, player in self.players.items() if player.get("chips", 0) > 0}
             
             # 重置每个玩家的弃牌状态
             for position in self.players:
@@ -277,7 +282,7 @@ class Game:
                 return {"success": False, "message": f"玩家不在活跃玩家列表中"}
             
             # 检查玩家是否已经行动过
-            if self.player_acted[self.current_player_idx]:
+            if self.player_acted.get(self.current_player_idx, False):
                 print(f"玩家 {self.current_player_idx} 已经行动过")
                 return {"success": False, "message": f"玩家已经行动过"}
         
@@ -330,9 +335,6 @@ class Game:
                     "discard_index": discard_index,
                     "timestamp": time.time()
                 })
-                
-                # 标记玩家已执行弃牌动作，但不改变其他行动状态
-                # 不设置player_acted为True，这样玩家仍需进行其他操作（如下注等）
                 
                 # 注意：不移动到下一个玩家，因为当前玩家需要继续执行其他动作
                 return {"success": True, "message": "成功弃牌", "discarded_card": discarded_card}
@@ -415,9 +417,9 @@ class Game:
                 self.current_bet = amount
                 
                 # 重置其他玩家的行动状态
-                for i in range(len(self.player_acted)):
-                    if i != self.current_player_idx and i in self.active_players:
-                        self.player_acted[i] = False
+                for position in self.active_players:
+                    if position != self.current_player_idx:
+                        self.player_acted[position] = False
                         
                 self.player_acted[self.current_player_idx] = True
                 print(f"玩家 {player_name} 加注到 {amount}")
@@ -434,9 +436,9 @@ class Game:
                 if all_in_amount > self.current_bet:
                     self.current_bet = all_in_amount
                     # 重置其他玩家的行动状态
-                    for i in range(len(self.player_acted)):
-                        if i != self.current_player_idx and i in self.active_players:
-                            self.player_acted[i] = False
+                    for position in self.active_players:
+                        if position != self.current_player_idx:
+                            self.player_acted[position] = False
                 
                 self.player_acted[self.current_player_idx] = True
                 print(f"玩家 {player_name} 全下 {all_in_amount}")
@@ -600,7 +602,7 @@ class Game:
         
     def check_all_players_acted(self):
         for player_idx in self.active_players:
-            if not self.player_acted[player_idx]:
+            if not self.player_acted.get(player_idx, False):
                 return False
         return True
         
@@ -618,8 +620,8 @@ class Game:
         # 重置当前最高下注额
         self.current_bet = 0
             
-        # 重置玩家是否行动过
-        self.player_acted = [False] * len(self.players)
+        # 重置玩家是否行动过，只包含筹码大于0的玩家
+        self.player_acted = {position: False for position, player in self.players.items() if player.get("chips", 0) > 0}
             
         try:
             # 根据当前轮次发放公共牌
@@ -902,7 +904,7 @@ class Game:
             self.players[position]['bet_amount'] = 0
         
         # Check for active players with chips
-        self.active_players = [position for position, player in self.players.items() if player["chips"] > 0]
+        self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0])
         
         if len(self.active_players) <= 1:
             print("Game over: only one player with chips remaining")
@@ -1050,10 +1052,11 @@ class Game:
                 self.current_bet = amount
                 
                 # Reset acted flags since betting has changed
-                for i in range(len(self.player_acted)):
-                    if i != player_idx and i in self.active_players:
-                        self.player_acted[i] = False
+                for position in self.active_players:
+                    if position != player_idx:
+                        self.player_acted[position] = False
                         
+                self.player_acted[player_idx] = True
                 print(f"Player {player_name} {action}s {amount}")
             
             else:

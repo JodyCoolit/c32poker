@@ -85,14 +85,19 @@ class WebSocketService {
         };
         
         // Add player states hash to detect player-specific changes
-        if (gameState.players && gameState.players.length > 0) {
-            criticalFields.playersHash = gameState.players.map(p => ({
+        if (gameState.game?.players && gameState.game?.players.length > 0) {
+            criticalFields.playersHash = gameState.game.players.map(p => ({
                 id: p.id || p.username || '',
                 position: p.position || -1,
                 chips: p.chips || 0,
                 bet: p.bet || p.current_bet || 0,
                 status: p.status || '',
-                isPlaying: !!p.isPlaying
+                isPlaying: !!p.isPlaying,
+                // 添加弃牌信息到状态哈希计算
+                has_discarded: !!p.has_discarded,
+                discarded_card: p.discarded_card || null,
+                // 添加手牌数量变化检测
+                handSize: (p.hand && Array.isArray(p.hand)) ? p.hand.length : 0
             }));
         }
         
@@ -421,10 +426,19 @@ class WebSocketService {
         
         // Check for specific room handlers
         if (gameState.room_id) {
+            console.log(`检查房间 ${gameState.room_id} 的特定处理器`);
             const handler = this.gameStateHandlers.get(gameState.room_id);
+            
             if (handler) {
+                console.log(`找到房间 ${gameState.room_id} 的处理器，正在调用...`);
                 handler(gameState);
+                console.log(`房间 ${gameState.room_id} 的处理器调用完成`);
+            } else {
+                console.log(`未找到房间 ${gameState.room_id} 的处理器，已注册的房间:`, 
+                           Array.from(this.gameStateHandlers.keys()));
             }
+        } else {
+            console.log(`游戏状态中未包含房间ID:`, gameState);
         }
     }
     
@@ -509,6 +523,14 @@ class WebSocketService {
     }
 
     _handleGameUpdate(updateData) {
+        // 记录弃牌操作
+        if (updateData.action === 'discard') {
+            console.log('检测到弃牌操作:', updateData);
+            
+            // 强制更新游戏状态
+            this.lastGameStateHash = null;
+        }
+        
         // Notify about game update (includes action and result)
         this._notifyListeners('gameUpdate', updateData);
         
@@ -654,7 +676,8 @@ class WebSocketService {
         }
         
         this.gameStateHandlers.set(roomId, handler);
-        console.log(`Registered game state handler for room ${roomId}`);
+        console.log(`已注册房间 ${roomId} 的游戏状态处理器，当前注册的房间:`, 
+                   Array.from(this.gameStateHandlers.keys()));
     }
 
     unregisterGameStateHandler(roomId) {
