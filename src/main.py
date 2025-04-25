@@ -300,7 +300,7 @@ async def game_websocket_endpoint(
                     # Game operation
                     action = data.get("action")
                     amount = data.get("amount", 0)
-                    cards = data.get("cards", [])
+                    card_index = data.get("card_index", 0)
                     
                     # Validate the room and game exist
                     room = room_manager.get_room(room_id)
@@ -318,21 +318,38 @@ async def game_websocket_endpoint(
                     result = {"success": False, "message": "Invalid action"}
                     
                     try:
-                        # Handle different actions
-                        if action == "fold":
-                            result = room.game.handle_action(username, "fold")
-                        elif action == "check":
-                            result = room.game.handle_action(username, "check")
-                        elif action == "call":
-                            result = room.game.handle_action(username, "call")
-                        elif action == "raise":
-                            result = room.game.handle_action(username, "raise", amount)
-                        elif action == "bet":
-                            result = room.game.handle_action(username, "bet", amount)
-                        elif action == "discard":
-                            result = room.game.handle_discard(username, cards)
+                        # 找到玩家位置索引
+                        player_position = None
+                        for position, player in room.game.players.items():
+                            if player.get('name') == username or player.get('username') == username:
+                                player_position = position
+                                break
+                        
+                        if player_position is None:
+                            result = {"success": False, "message": "Player not found in game"}
                         else:
-                            result = {"success": False, "message": f"Unknown action: {action}"}
+                            # 检查是否是当前玩家的回合，或者是否是弃牌操作
+                            is_current_player = (player_position == room.game.current_player_idx)
+                            
+                            # 只有弃牌操作可以在非玩家回合执行
+                            if action == "discard":
+                                result = room.game.handle_action("discard", card_index)
+                            elif not is_current_player:
+                                result = {"success": False, "message": "Not your turn to act"}
+                            else:
+                                # 处理其他动作（只有在当前玩家回合才允许）
+                                if action == "fold":
+                                    result = room.game.handle_action("fold")
+                                elif action == "check":
+                                    result = room.game.handle_action("check")
+                                elif action == "call":
+                                    result = room.game.handle_action("call")
+                                elif action == "raise":
+                                    result = room.game.handle_action("raise", amount)
+                                elif action == "bet":
+                                    result = room.game.handle_action("bet", amount)
+                                else:
+                                    result = {"success": False, "message": f"Unknown action: {action}"}
                         
                         # If action was successful, broadcast the new game state
                         if result.get("success"):
@@ -348,7 +365,6 @@ async def game_websocket_endpoint(
                                         "action": action,
                                         "player": username,
                                         "amount": amount,
-                                        "cards": cards if action == "discard" else None,
                                         "result": result,
                                         "game_state": updated_state
                                     }

@@ -204,7 +204,7 @@ const PokerTable = ({
   // 判断游戏是否已经开始
   const isGameStarted = status === 'playing' || 
     gameState.isGameStarted ||
-    ['PRE_FLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN', 'DRAW'].includes(extractedGamePhase);
+    ['PRE_FLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN'].includes(extractedGamePhase);
   
   // Determine if it's the user's turn
   const isUserTurn = userPlayer && turnPlayerId === userPlayer.id;

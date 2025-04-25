@@ -253,13 +253,16 @@ async def leave_room(
             # 如果是当前玩家的回合，自动弃牌
             if player_index == room.game.current_player_idx:
                 # 如果需要弃牌（Pineapple规则）
-                if len(room.game.players[player_index].get("hand", [])) == 3 and not room.game.has_discarded[player_index]:
+                if len(room.game.players[player_index].get("hand", [])) == 3 and not room.game.players[player_index].get("has_discarded", False):
                     # 随机选择一张牌弃掉
                     discard_index = 0
-                    room.game.process_action(player_index, "discard", 0, discard_index)
+                    # 确保设置当前玩家索引并调用handle_action
+                    room.game.current_player_idx = player_index
+                    room.game.handle_action("discard", discard_index)
                 
                 # 然后弃牌离开
-                room.game.process_action(player_index, "fold", 0)
+                room.game.current_player_idx = player_index
+                room.game.handle_action("fold")
             else:
                 # 不是当前回合，标记为弃牌
                 if player_index in room.game.active_players:

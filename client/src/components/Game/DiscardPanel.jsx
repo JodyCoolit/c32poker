@@ -1,193 +1,149 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Paper, Fade } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, Button, Paper } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import Card from './Card';
-import websocketService from '../../services/websocket';
+import PlayingCard from './PlayingCard';
+import DiscardedCard from './DiscardedCard';
 
-// Styled components
-const PanelContainer = styled(Paper)(({ theme }) => ({
-  padding: theme.spacing(2),
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  backgroundColor: 'rgba(0, 0, 0, 0.7)',
   borderRadius: theme.shape.borderRadius,
-  backdropFilter: 'blur(10px)',
-  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-  color: 'white',
-  maxWidth: '600px',
+  padding: theme.spacing(2),
+  maxWidth: '400px',
   margin: '0 auto',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
   border: '1px solid rgba(255, 255, 255, 0.1)',
 }));
 
-const CardSelectionArea = styled(Box)(({ theme }) => ({
+const CardContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   justifyContent: 'center',
   gap: theme.spacing(2),
   marginBottom: theme.spacing(2),
-  flexWrap: 'wrap',
-  padding: theme.spacing(2),
+  minHeight: '120px',
 }));
 
-const ActionButton = styled(Button)(({ theme, color }) => ({
-  margin: theme.spacing(1),
-  backgroundColor: color === 'discard' ? 'rgba(211, 47, 47, 0.8)' : 'rgba(25, 118, 210, 0.8)',
-  color: 'white',
+const CardWrapper = styled(Box)(({ theme, selected }) => ({
+  position: 'relative',
+  cursor: 'pointer',
+  transform: selected ? 'translateY(-10px)' : 'none',
+  transition: 'transform 0.2s ease',
+  boxShadow: selected ? '0 0 10px 3px rgba(255, 215, 0, 0.7)' : 'none',
   '&:hover': {
-    backgroundColor: color === 'discard' ? 'rgba(211, 47, 47, 1)' : 'rgba(25, 118, 210, 1)',
-  },
-  '&.Mui-disabled': {
-    backgroundColor: 'rgba(66, 66, 66, 0.5)',
-    color: 'rgba(255, 255, 255, 0.3)',
+    transform: 'translateY(-5px)',
   },
 }));
 
 /**
- * DiscardPanel component for selecting cards to discard in a Draw Poker game
+ * DiscardPanel component for displaying the player's hand and discard interface
  * @param {Object} props - Component props
- * @param {Array} props.cards - Array of card objects or strings representing the player's hand
- * @param {boolean} props.isVisible - Whether the discard panel should be visible
- * @param {number} props.maxDiscards - Maximum number of cards that can be discarded (typically 3 or 5)
- * @param {boolean} props.isUserTurn - Whether it's the user's turn to act
- * @param {Function} props.onDiscard - Callback function when discard is confirmed
- * @param {Function} props.onKeep - Callback function when player decides to keep all cards
+ * @param {Array} props.cards - The player's hand cards
+ * @param {Function} props.onDiscard - Function to call when a card is discarded
+ * @param {Object} props.discardedCard - The card that has been discarded (if any)
  */
-const DiscardPanel = ({
-  cards = [],
-  isVisible = false,
-  maxDiscards = 3,
-  isUserTurn = false,
-  onDiscard = () => {},
-  onKeep = () => {},
-}) => {
-  // State to track selected cards for discard
-  const [selectedCards, setSelectedCards] = useState([]);
-  const [loading, setLoading] = useState(false);
+const DiscardPanel = ({ cards = [], onDiscard, discardedCard = null }) => {
+  const [selectedCardIndex, setSelectedCardIndex] = useState(-1);
 
-  // Reset selected cards when visibility changes
-  useEffect(() => {
-    if (!isVisible) {
-      setSelectedCards([]);
-      setLoading(false);
-    }
-  }, [isVisible]);
-
-  // Handle card selection toggle
-  const handleCardClick = (card, cardInfo) => {
-    console.log('Card clicked:', card, 'Info:', cardInfo);
-    
-    // Find the index of the card in the hand
-    const cardIndex = cards.findIndex(c => {
-      // Handle both string format and object format
-      if (typeof c === 'string') {
-        return c === card;
+  const handleCardClick = (index) => {
+    // 如果已经选中了这张牌，则取消选中
+    if (selectedCardIndex === index) {
+      setSelectedCardIndex(-1);
+    } else {
+      // 否则选中这张牌
+      setSelectedCardIndex(index);
       }
-      return c.display === card || c === card;
-    });
-    
-    if (cardIndex === -1) {
-      console.error('Card not found in hand:', card);
+  };
+
+  const handleDiscardClick = () => {
+    if (selectedCardIndex === -1) {
       return;
     }
-    
-    setSelectedCards(prev => {
-      // If card is already selected, remove it
-      if (prev.includes(cardIndex)) {
-        return prev.filter(idx => idx !== cardIndex);
-      }
-      
-      // If max cards already selected, don't add more
-      if (prev.length >= maxDiscards) {
-        return prev;
-      }
-      
-      // Add card to selected cards
-      return [...prev, cardIndex];
-    });
+    onDiscard(selectedCardIndex);
+    setSelectedCardIndex(-1);
   };
 
-  // Handle discard action
-  const handleDiscard = async () => {
-    if (selectedCards.length === 0) {
-      // If no cards selected, act same as keep
-      handleKeep();
-      return;
-    }
-    
-    setLoading(true);
-    console.log('Discarding cards at indices:', selectedCards);
-    
-    try {
-      // Send discard action to server
-      await websocketService.discard(selectedCards);
-      
-      // Call callback if provided
-      if (onDiscard) {
-        onDiscard(selectedCards);
-      }
-    } catch (error) {
-      console.error('Error discarding cards:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle keep all cards action
-  const handleKeep = async () => {
-    setLoading(true);
-    console.log('Keeping all cards');
-    
-    try {
-      // Send empty discard action (or specific "keep" action if your API supports it)
-      await websocketService.discard([]);
-      
-      // Call callback if provided
-      if (onKeep) {
-        onKeep();
-      }
-    } catch (error) {
-      console.error('Error keeping cards:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!isVisible || !isUserTurn) {
-    return null;
+  // 如果已经弃牌了，则只显示剩余的两张牌和弃牌
+  if (discardedCard) {
+  return (
+      <StyledPaper>
+        <Typography 
+          variant="h6" 
+          gutterBottom
+          sx={{ 
+            color: 'white',
+            textAlign: 'center',
+            marginBottom: 2,
+            fontWeight: 'bold'
+          }}
+        >
+          我的手牌
+        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
+          <Box>
+            <DiscardedCard card={discardedCard} visible={true} />
+          </Box>
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 1.5,
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              left: -10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 0,
+              height: 0,
+              borderTop: '10px solid transparent',
+              borderBottom: '10px solid transparent',
+              borderLeft: '10px solid rgba(255, 255, 255, 0.7)',
+            }
+          }}>
+            {cards.map((card, idx) => (
+              <Box key={idx} sx={{ position: 'relative' }}>
+                <PlayingCard card={card.display || card} faceUp={true} />
+              </Box>
+            ))}
+          </Box>
+        </Box>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: 'rgba(255, 255, 255, 0.7)',
+            textAlign: 'center',
+            marginTop: 2
+          }}
+        >
+          已弃掉一张牌，现在可以开始游戏
+        </Typography>
+      </StyledPaper>
+    );
   }
 
-  return (
-    <Fade in={isVisible}>
-      <PanelContainer>
-        <Typography variant="h6" align="center" gutterBottom>
-          选择需要换掉的牌
-        </Typography>
-        
-        <Typography variant="body2" align="center" sx={{ mb: 2, color: 'rgba(255,255,255,0.7)' }}>
-          最多可以换掉 {maxDiscards} 张牌。点击选择要换掉的牌。
-        </Typography>
-        
-        <CardSelectionArea>
-          {cards.map((card, index) => {
-            // Determine card display value
-            const cardValue = typeof card === 'string' ? card : (card.display || card);
-            
-            // Check if this card is selected
-            const isSelected = selectedCards.includes(index);
-            
+  // 尚未弃牌，显示弃牌界面
             return (
-              <Box key={index} sx={{ position: 'relative' }}>
-                <Card
-                  card={cardValue}
-                  size="large"
-                  interactive={true}
-                  highlight={false}
-                  selected={isSelected}
-                  onClick={handleCardClick}
-                  style={{
-                    transform: isSelected ? 'translateY(-15px)' : 'none',
-                    transition: 'transform 0.2s ease',
-                    border: isSelected ? '3px solid #e53935' : 'none'
-                  }}
-                />
-                {isSelected && (
+    <StyledPaper>
+      <Typography 
+        variant="h6" 
+        gutterBottom
+        sx={{ 
+          color: 'white',
+          textAlign: 'center',
+          marginBottom: 2,
+          fontWeight: 'bold'
+        }}
+      >
+        选择弃掉一张牌以开始游戏
+      </Typography>
+      
+      <CardContainer>
+        {cards.map((card, index) => (
+          <CardWrapper 
+            key={index} 
+            selected={selectedCardIndex === index}
+            onClick={() => handleCardClick(index)}
+          >
+            <PlayingCard card={card.display || card} faceUp={true} />
+            {selectedCardIndex === index && (
                   <Box sx={{
                     position: 'absolute',
                     top: -10,
@@ -207,38 +163,42 @@ const DiscardPanel = ({
                     X
                   </Box>
                 )}
-              </Box>
-            );
-          })}
-        </CardSelectionArea>
-        
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-          <ActionButton 
-            color="keep"
+          </CardWrapper>
+        ))}
+      </CardContainer>
+      
+      <Button
             variant="contained" 
-            onClick={handleKeep}
-            disabled={loading}
-          >
-            保持原牌
-          </ActionButton>
-          
-          <ActionButton 
-            color="discard"
-            variant="contained" 
-            onClick={handleDiscard}
-            disabled={selectedCards.length === 0 || loading}
-          >
-            换牌 ({selectedCards.length})
-          </ActionButton>
-        </Box>
-        
-        {loading && (
-          <Typography variant="body2" align="center" sx={{ mt: 2, color: 'rgba(255,255,255,0.7)' }}>
-            处理中...
+        color="error"
+        fullWidth
+        disabled={selectedCardIndex === -1}
+        onClick={handleDiscardClick}
+        sx={{
+          backgroundColor: 'rgba(211, 47, 47, 0.8)',
+          '&:hover': {
+            backgroundColor: 'rgba(211, 47, 47, 1)',
+          },
+          '&.Mui-disabled': {
+            backgroundColor: 'rgba(66, 66, 66, 0.5)',
+            color: 'rgba(255, 255, 255, 0.3)',
+          }
+        }}
+      >
+        弃掉选中的牌
+      </Button>
+      
+      <Typography 
+        variant="body2" 
+        sx={{ 
+          color: 'rgba(255, 255, 255, 0.7)',
+          textAlign: 'center',
+          marginTop: 2,
+          fontStyle: 'italic'
+        }}
+      >
+        提示：每位玩家必须弃掉一张牌才能开始游戏
           </Typography>
-        )}
-      </PanelContainer>
-    </Fade>
+    </StyledPaper>
   );
 };
 

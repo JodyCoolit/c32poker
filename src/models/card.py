@@ -1,10 +1,10 @@
 from enum import Enum
 
 class Suit(Enum):
-    HEARTS = "H"
-    DIAMONDS = "D"
-    CLUBS = "C"
-    SPADES = "S"
+    HEARTS = "h"
+    DIAMONDS = "d"
+    CLUBS = "c"
+    SPADES = "s"
 
 class Card:
     def __init__(self, rank, suit):

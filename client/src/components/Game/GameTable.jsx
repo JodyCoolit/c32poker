@@ -18,7 +18,6 @@ import RaiseDialog from './RaiseDialog';
 import ShowdownDialog from './ShowdownDialog';
 import GameHistoryDialog from './GameHistoryDialog';
 import PlayerListDialog from './PlayerListDialog';
-import DiscardPanel from './DiscardPanel';
 import { gameService, roomService } from '../../services/api';
 import websocketService from '../../services/websocket';
 import logger from '../../utils/logger';
@@ -32,6 +31,7 @@ import CardDealingAnimation from './CardDealingAnimation';
 import dealingAnimationUtils from '../../utils/dealingAnimationUtils';
 import { keyframes } from 'styled-components';
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset';
+import DiscardedCard from './DiscardedCard';
 
 // 游戏表格容器样式
 const GameTableContainer = styled(Box)(({ theme }) => ({
@@ -190,12 +190,9 @@ const GameTable = () => {
   const [currentPlayerPosition, setCurrentPlayerPosition] = useState(-1);
   
   // 添加换牌相关状态
-  const [isDiscardPhase, setIsDiscardPhase] = useState(false);
   const [playerHand, setPlayerHand] = useState([]);
-  const [maxDiscards, setMaxDiscards] = useState(3); // 默认最多换3张牌
-  
-  // 添加状态变量来控制手牌显示
-  const [showPlayerCards, setShowPlayerCards] = useState(false);
+  const [selectedCardIndex, setSelectedCardIndex] = useState(-1); // 添加选中的牌索引状态
+  const [discardedCard, setDiscardedCard] = useState(null); // 添加弃掉的牌状态
   
   // 在GameTable组件内添加当前玩家轮次计时状态
   const [playerTurnTime, setPlayerTurnTime] = useState({});
@@ -1941,7 +1938,7 @@ const GameTable = () => {
       
       // 只有在游戏阶段为PRE_FLOP、FLOP、TURN或RIVER且有current_player_idx时，才处理玩家思考时间
       if (newGameState.gamePhase && 
-          ['PRE_FLOP', 'FLOP', 'TURN', 'RIVER', 'DRAW'].includes(newGameState.gamePhase) && 
+          ['PRE_FLOP', 'FLOP', 'TURN', 'RIVER'].includes(newGameState.gamePhase) && 
           (newGameState.current_player_idx !== undefined || newGameState.game?.current_player_idx !== undefined)) {
         console.log(`处理思考时间：游戏阶段=${newGameState.gamePhase}，当前玩家=${newGameState.current_player_idx || newGameState.game?.current_player_idx}`);
         handlePlayerTurnTime(newGameState);
@@ -1958,16 +1955,67 @@ const GameTable = () => {
       // 处理玩家手牌 - 从my_hand字段获取
       if (newGameState.my_hand && Array.isArray(newGameState.my_hand)) {
         console.log('接收到玩家手牌:', newGameState.my_hand);
-        setPlayerHand(newGameState.my_hand);
-    }
-    
-      // 处理游戏阶段 - 设置是否是弃牌阶段
-      if (newGameState.gamePhase === 'DRAW') {
-        console.log('检测到当前是弃牌阶段');
-      setIsDiscardPhase(true);
-    } else {
-      setIsDiscardPhase(false);
-    }
+        
+        // 检查是否是弃牌后的更新 - 更强健的检测
+        const isAfterDiscard = (playerHand.length === 3 && newGameState.my_hand.length === 2) || 
+                               (discardedCard && playerHand.length > newGameState.my_hand.length);
+        
+        // 添加延迟，确保发牌动画完成后才显示手牌
+        setTimeout(() => {
+          // 如果是弃牌后的更新，保留弃掉的牌信息
+          if (isAfterDiscard && discardedCard) {
+            console.log('弃牌后更新手牌，保留弃掉的牌信息:', discardedCard);
+            
+            // 创建新的手牌数组，先放置弃掉的牌，然后是当前手牌
+            const updatedHand = [
+              { 
+                ...discardedCard, 
+                isDiscarded: true  // 标记为已弃牌
+              },
+              ...newGameState.my_hand
+            ];
+            
+            console.log('更新后的手牌数组:', updatedHand);
+            setPlayerHand(updatedHand);
+          } else {
+            // 常规更新，直接设置手牌
+            setPlayerHand(newGameState.my_hand);
+            // 如果手牌数量变化且没有弃掉的牌，重置弃掉的牌状态
+            if (playerHand.length !== newGameState.my_hand.length) {
+              setDiscardedCard(null);
+            }
+          }
+          console.log('延迟后显示手牌');
+        }, 3000);
+      }
+
+      // 检查弃牌状态更新
+      if (newGameState.game && newGameState.game.players && Array.isArray(newGameState.game.players)) {
+        // 找到当前玩家
+        const currentPlayerData = newGameState.game.players.find(p => 
+          p.name === currentUser || p.username === currentUser
+        );
+        
+        console.log('检测到玩家 currentPlayerData:', currentPlayerData);
+        if (currentPlayerData) {
+          // 检查玩家是否有has_discarded标记
+          if (currentPlayerData.has_discarded === true) {
+            console.log('检测到玩家已弃牌状态更新');
+            
+            // 如果还没有设置弃掉的牌，尝试从玩家数据中获取
+            if (!discardedCard && currentPlayerData.discarded_card) {
+              console.log('从服务器获取弃掉的牌:', currentPlayerData.discarded_card);
+              setDiscardedCard(currentPlayerData.discarded_card);
+            } 
+          } else if (currentPlayerData.has_discarded === false) {
+            // 如果服务器明确指出未弃牌，确保重置弃牌状态
+            if (discardedCard) {
+              console.log('服务器表明玩家未弃牌，重置弃牌状态');
+              setDiscardedCard(null);
+            }
+          }
+        }
+      }
     
       // 检测摊牌阶段并打开摊牌对话框
       if (newGameState.gamePhase === 'SHOWDOWN') {
@@ -2103,37 +2151,52 @@ const GameTable = () => {
     return false;
   }, []);
   
-  // 处理换牌完成
-  const handleDiscardComplete = (discardedIndices) => {
-    console.log('换牌完成，换掉了以下牌:', discardedIndices);
-    
-    // 可以添加一些UI反馈
-    if (discardedIndices.length > 0) {
+  // 处理弃牌完成
+  const handleDiscardComplete = (discardedIndex) => {
+    if (discardedIndex >= 0 && discardedIndex < playerHand.length) {
+      console.log(`设置弃掉的牌: ${JSON.stringify(playerHand[discardedIndex])}`);
+      // 重置选中的牌
+      setSelectedCardIndex(-1);
+    }
+  };
+  
+  // 处理牌的点击事件
+  const handleCardClick = (index) => {
+    if (playerHand && playerHand.length === 3) {
+      // 如果已经选中了这张牌，则取消选中
+      if (selectedCardIndex === index) {
+        setSelectedCardIndex(-1);
+      } else {
+        // 否则选中这张牌
+        setSelectedCardIndex(index);
+      }
+    }
+  };
+  
+  // 处理弃牌按钮点击
+  const handleDiscard = async () => {
+    if (selectedCardIndex === -1) {
       setNotification({
         open: true,
-        message: `成功换掉了 ${discardedIndices.length} 张牌`,
-        severity: 'success',
+        message: '请先选择一张要弃掉的牌',
+        severity: 'warning',
         autoHideDuration: 3000
       });
-    } else {
+      return;
+    }
+    
+    try {
+      await websocketService.discard(selectedCardIndex);
+      handleDiscardComplete(selectedCardIndex);
+    } catch (error) {
+      console.error('弃牌失败:', error);
       setNotification({
         open: true,
-        message: '保持原牌',
-        severity: 'info',
+        message: '弃牌失败，请重试',
+        severity: 'error',
         autoHideDuration: 3000
       });
     }
-  };
-
-  // 处理保持原牌
-  const handleKeepCards = () => {
-    console.log('玩家选择保持原牌');
-    setNotification({
-      open: true,
-      message: '保持原牌',
-      severity: 'info',
-      autoHideDuration: 3000
-    });
   };
   
   // 打印初始游戏阶段
@@ -2644,54 +2707,138 @@ const GameTable = () => {
         {/* 添加当前玩家手牌区域 - 仅在游戏开始后显示 */}
         {gameState.status === 'playing' && playerHand && playerHand.length > 0 && (
           <Box sx={{
-                    position: 'absolute',
+            position: 'absolute',
             bottom: '20px',  // 调低位置与头像底部对齐
             left: '47%',    // 更靠近头像
             transform: 'translateX(-100%)', // 向左偏移自身宽度
-                    display: 'flex',
+            display: 'flex',
             flexDirection: 'row', // 水平排列
-            gap: 0.5,  // 减小卡片间距
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            padding: 1,
-              borderRadius: 2,
-            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.5)',
-            transition: 'all 0.3s ease',
+            alignItems: 'flex-end', // 底部对齐
+            gap: 2,  // 增加间距
             zIndex: 10
           }}>
-            <Typography variant="caption" sx={{ 
-              color: 'white', 
-              position: 'absolute',
-              top: -20, 
-              left: '50%', 
-              transform: 'translateX(-50%)',
-              bgcolor: 'rgba(0,0,0,0.6)', 
-              px: 1, 
-              py: 0.5, 
-              borderRadius: 1 
-            }}>
-              我的手牌
-                  </Typography>
-            {playerHand.map((card, index) => (
-              <Box key={index} sx={{ position: 'relative' }}>
-                <PlayingCard 
-                  card={card.display || card} 
-                  faceUp={true}
-                />
+            {/* 单独显示弃掉的牌 */}
+            {discardedCard && (
+              <Box 
+                sx={{ 
+                  p: 1, 
+                  borderRadius: 2,
+                  bgcolor: 'rgba(0, 0, 0, 0.4)',
+                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4)',
+                  mb: 1
+                }}
+              >
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: 'white', 
+                    display: 'block',
+                    textAlign: 'center',
+                    mb: 0.5,
+                    bgcolor: 'rgba(0,0,0,0.6)', 
+                    px: 1, 
+                    py: 0.5, 
+                    borderRadius: 1 
+                  }}
+                >
+                  弃牌
+                </Typography>
+                <DiscardedCard card={discardedCard} visible={true} />
               </Box>
-            ))}
-                                                </Box>
-                                            )}
-
-        {/* 添加换牌面板 */}
-        <DiscardPanel
-          cards={playerHand}
-          isVisible={isDiscardPhase && isUserTurn}
-          maxDiscards={maxDiscards}
-          isUserTurn={isUserTurn}
-          onDiscard={handleDiscardComplete}
-          onKeep={handleKeepCards}
-        />
-        
+            )}
+            
+            {/* 手牌区域，不再包含弃牌 */}
+            <Box 
+              sx={{
+                p: 1,
+                borderRadius: 2,
+                bgcolor: 'rgba(0, 0, 0, 0.6)',
+                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.5)',
+                transition: 'all 0.3s ease',
+              }}
+            >
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: 'white', 
+                  display: 'block',
+                  textAlign: 'center',
+                  mb: 0.5,
+                  bgcolor: 'rgba(0,0,0,0.6)', 
+                  px: 1, 
+                  py: 0.5, 
+                  borderRadius: 1 
+                }}
+              >
+                我的手牌
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexDirection: 'row', gap: 0.5 }}>
+                {/* 只显示没有isDiscarded标记的牌 */}
+                {playerHand.filter(card => !card.isDiscarded).map((card, index) => (
+                  <Box 
+                    key={index} 
+                    sx={{ 
+                      position: 'relative',
+                      cursor: playerHand.length === 3 ? 'pointer' : 'default',
+                      transform: selectedCardIndex === index ? 'translateY(-10px)' : 'none',
+                      transition: 'transform 0.2s ease',
+                      boxShadow: selectedCardIndex === index ? '0 0 10px 3px rgba(255, 215, 0, 0.7)' : 'none',
+                    }}
+                    onClick={() => playerHand.length === 3 && handleCardClick(index)}
+                  >
+                    <PlayingCard 
+                      card={card.display || card} 
+                      faceUp={true}
+                    />
+                    {selectedCardIndex === index && (
+                      <Box sx={{
+                        position: 'absolute',
+                        top: -10,
+                        right: -10,
+                        backgroundColor: '#e53935',
+                        borderRadius: '50%',
+                        width: 24,
+                        height: 24,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontWeight: 'bold',
+                        boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                        border: '2px solid white'
+                      }}>
+                        X
+                      </Box>
+                    )}
+                  </Box>
+                ))}
+              </Box>
+              
+              {/* 只在有3张牌时显示弃牌按钮 */}
+              {playerHand.length === 3 && !discardedCard && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  size="small"
+                  disabled={selectedCardIndex === -1}
+                  onClick={handleDiscard}
+                  sx={{
+                    mt: 1,
+                    fontSize: '0.75rem',
+                    py: 0.5,
+                    width: '100%',
+                    bgcolor: 'rgba(211, 47, 47, 0.8)',
+                    '&:hover': { bgcolor: 'rgba(211, 47, 47, 1)' },
+                    '&.Mui-disabled': { bgcolor: 'rgba(66, 66, 66, 0.5)', color: 'rgba(255, 255, 255, 0.3)' }
+                  }}
+                >
+                  弃掉选中的牌
+                </Button>
+              )}
+            </Box>
+          </Box>
+        )}
 
         {/* 玩家下注区域 - 防止重复渲染 */}
         {useMemo(() => {

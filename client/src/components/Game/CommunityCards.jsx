@@ -41,12 +41,11 @@ const phaseNames = {
   'FLOP': '翻牌',
   'TURN': '转牌',
   'RIVER': '河牌',
-  'SHOWDOWN': '摊牌',
-  'DRAW': '换牌',
+  'SHOWDOWN': '摊牌'
 };
 
 // 有效的游戏阶段列表（不包括等待状态）
-const validGamePhases = ['PRE_FLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN', 'DRAW'];
+const validGamePhases = ['PRE_FLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN'];
 
 /**
  * 公共牌组件

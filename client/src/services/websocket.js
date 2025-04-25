@@ -576,7 +576,7 @@ class WebSocketService {
     }
     
     discard(cardIndex) {
-        return this.sendAction('game_action', { action: 'discard', cards: cardIndex });
+        return this.sendAction('game_action', { action: 'discard', card_index: cardIndex });
     }
 
     // 新增的操作函数：入座

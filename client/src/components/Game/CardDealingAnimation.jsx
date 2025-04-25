@@ -157,7 +157,7 @@ const CardDealingAnimation = ({
   isActive = false, 
   onAnimationComplete, 
   testMode = false,
-  debug = true, // 默认开启调试模式
+  debug = false, // 默认关闭调试模式
   showMarkers = false, // 默认隐藏位置标记
   currentUser = "", // 当前用户的用户名
   gameState = {} // 游戏状态对象
@@ -249,16 +249,16 @@ const CardDealingAnimation = ({
     
     if (!shouldCalculatePositions) return;
     
-    // 使用测试数据或传入的玩家数据
-    const playersToUse = (testMode && window._testPlayers) || players;
+      // 使用测试数据或传入的玩家数据
+      const playersToUse = (testMode && window._testPlayers) || players;
     
     // 如果没有玩家数据，不处理
     if (playersToUse.length === 0) return;
     
     // 从gameState中获取当前行动玩家索引
     const currentPlayerIdx = getCurrentPlayerIdx();
-    
-    // 找出当前用户在玩家列表中的位置
+      
+      // 找出当前用户在玩家列表中的位置
     const currentUserIndex = playersToUse.findIndex(p => 
       p.username === currentUser || p.name === currentUser
     );
@@ -271,7 +271,7 @@ const CardDealingAnimation = ({
       console.log('[DEBUG] 当前行动玩家逻辑位置:', currentPlayerIdx);
       console.log('[DEBUG] gameState:', gameState);
     }
-    
+      
     // 找出当前用户的逻辑位置(position)
     let currentUserPosition = -1;
     if (currentUserIndex >= 0) {
@@ -287,37 +287,37 @@ const CardDealingAnimation = ({
         console.log(`[DEBUG] UI位置${pos} (逻辑位置未知) 的角度: ${angle}°`);
       });
       console.log('[DEBUG] 当前用户逻辑位置:', currentUserPosition);
-    }
-    
-    // 根据玩家的实际位置计算卡牌目标位置
-    const positions = playersToUse.map((player, index) => {
-      // 获取玩家的逻辑位置
-      const logicalPosition = player.position !== undefined ? player.position : index;
+      }
       
+      // 根据玩家的实际位置计算卡牌目标位置
+      const positions = playersToUse.map((player, index) => {
+      // 获取玩家的逻辑位置
+        const logicalPosition = player.position !== undefined ? player.position : index;
+        
       // 是否是当前用户
       const isCurrentUser = player.username === currentUser || player.name === currentUser;
       
       // 是否是当前行动玩家
       const isActionPlayer = logicalPosition === currentPlayerIdx;
-      
+        
       // 计算UI位置 - 这是关键的一步
       // 在Seat.jsx中，UI位置直接用于索引seatAngles
       // 因为我们通常将当前用户显示在底部，所以做相对调整
       let uiPosition = logicalPosition;
-      
+        
       // 如果找到了当前用户，调整其他玩家的UI位置，使当前用户显示在底部(UI位置0)
       if (currentUserPosition >= 0) {
         // 计算相对于当前用户的UI位置偏移
         // 使用模运算确保结果在0-7之间
         uiPosition = (logicalPosition - currentUserPosition + 8) % 8;
-      }
-      
+        }
+        
       // 获取该UI位置对应的角度
       const angleDegrees = seatAngles[uiPosition];
-      
+        
       // 计算坐标
       const { x, y } = calculatePosition(angleDegrees, 1);
-      
+        
       // DEBUG: 打印玩家位置计算详情
       if (debug) {
         console.log(`[DEBUG] 玩家${index} (${player.username || player.name || `玩家${index}`}):`);
@@ -328,23 +328,23 @@ const CardDealingAnimation = ({
         console.log(`  - 是当前用户: ${isCurrentUser}`);
         console.log(`  - 是当前行动玩家: ${isActionPlayer}`);
       }
-      
-      return {
-        playerId: player.id || index,
-        username: player.username || player.name || `玩家${index}`,
-        x: x,
-        y: y,
-        rotation: Math.random() * 10 - 5,
+        
+        return {
+          playerId: player.id || index,
+          username: player.username || player.name || `玩家${index}`,
+          x: x,
+          y: y,
+          rotation: Math.random() * 10 - 5,
         isCurrentUser: isCurrentUser,
         isActionPlayer: isActionPlayer,
-        logicalPosition: logicalPosition,
+          logicalPosition: logicalPosition,
         uiPosition: uiPosition,
         angleDegrees: angleDegrees
-      };
-    });
-    
+        };
+      });
+      
     // 设置活跃的位置数据
-    setPlayerPositions(positions);
+      setPlayerPositions(positions);
     
     // 只在特定情况下保存位置数据，避免无限循环
     // 如果是第一次计算位置(savedPositions为空)或处于洗牌阶段，才保存位置
