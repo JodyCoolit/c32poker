@@ -20,28 +20,21 @@ const CardContainer = styled(Box)(({ theme, selected }) => ({
   }
 }));
 
-const CardBack = styled(Box)({
-  position: 'absolute',
-  top: 0,
-  left: 0,
+const CardBack = styled(Box)(({ theme }) => ({
   width: '100%',
   height: '100%',
   borderRadius: '5px',
-  backgroundImage: 'linear-gradient(45deg, #1a237e, #3949ab)',
-  backgroundSize: '10px 10px',
-  backgroundPosition: '0 0, 5px 5px',
+  position: 'absolute',
+  transformStyle: 'preserve-3d',
+  backfaceVisibility: 'hidden',
+  backgroundColor: '#1a2c5c',
+  backgroundImage: 'repeating-linear-gradient(45deg, #142347, #142347 10px, #1a2c5c 10px, #1a2c5c 20px)',
+  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+  border: '2px solid #fff',
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
-  '&::after': {
-    content: '""',
-    position: 'absolute',
-    width: '80%',
-    height: '80%',
-    border: '2px solid rgba(255,255,255,0.1)',
-    borderRadius: '3px'
-  }
-});
+}));
 
 const CardCorner = styled(Box)(({ position, color }) => ({
   position: 'absolute',

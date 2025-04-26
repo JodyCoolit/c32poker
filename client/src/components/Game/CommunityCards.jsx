@@ -1,19 +1,19 @@
 import React from 'react';
-import { Box, Paper, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import PlayingCard from './PlayingCard';
 
 // 公共牌容器
-const CommunityCardsContainer = styled(Paper)(({ theme }) => ({
+const CommunityCardsContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   padding: theme.spacing(1),
   borderRadius: theme.spacing(1),
-  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+  backgroundColor: 'transparent',
   backdropFilter: 'blur(5px)',
   maxWidth: '100%',
-  margin: '0 auto',
+  margin: '0 auto'
 }));
 
 // 牌面容器
@@ -34,15 +34,6 @@ const PhaseLabel = styled(Typography)(({ theme }) => ({
   textTransform: 'uppercase',
   letterSpacing: '1px',
 }));
-
-// 游戏阶段对应的中文名称
-const phaseNames = {
-  'PRE_FLOP': '翻牌前',
-  'FLOP': '翻牌',
-  'TURN': '转牌',
-  'RIVER': '河牌',
-  'SHOWDOWN': '摊牌'
-};
 
 // 有效的游戏阶段列表（不包括等待状态）
 const validGamePhases = ['PRE_FLOP', 'FLOP', 'TURN', 'RIVER', 'SHOWDOWN'];
@@ -89,15 +80,54 @@ const CommunityCards = ({
   const visibleCardCount = getVisibleCardCount();
   const visibleCards = communityCards.slice(0, visibleCardCount);
   
-  // 填充空位
-  const placeholderCards = Array(5 - visibleCards.length).fill(null);
+  // 渲染牌的函数
+  const renderCards = () => {
+    // 如果是PRE_FLOP阶段，显示5张背面朝上的牌
+    if (gamePhase === 'PRE_FLOP') {
+      return Array(5).fill(null).map((_, index) => (
+        <PlayingCard 
+          key={`facedown-${index}`} 
+          faceUp={false}
+          sx={{ width: '60px', height: '90px', margin: '2px' }}
+        />
+      ));
+    }
+    
+    // 其他阶段，先显示已知的牌，然后是占位符
+    return (
+      <>
+        {visibleCards.map((card, index) => (
+          <PlayingCard 
+            key={index} 
+            card={card} 
+            faceUp={true}
+            sx={{ width: '60px', height: '90px', margin: '2px' }}
+          />
+        ))}
+        
+        {Array(5 - visibleCards.length).fill(null).map((_, index) => (
+          <Box 
+            key={`placeholder-${index}`} 
+            sx={{ 
+              width: '60px',
+              height: '90px',
+              borderRadius: '5px',
+              border: '1px dashed rgba(255,255,255,0.3)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              margin: '2px'
+            }}
+          >
+            {/* 空白牌位 */}
+          </Box>
+        ))}
+      </>
+    );
+  };
   
   return (
-    <CommunityCardsContainer elevation={3}>
-      <PhaseLabel variant="subtitle2">
-        {phaseNames[gamePhase] || '等待发牌'}
-      </PhaseLabel>
-      
+    <CommunityCardsContainer>
       {potAmount > 0 && (
         <Typography 
           variant="h6" 
@@ -107,36 +137,12 @@ const CommunityCards = ({
             marginBottom: 1
           }}
         >
-          底池: ${potAmount}
+          底池: {potAmount} BB
         </Typography>
       )}
       
       <CardsContainer>
-        {visibleCards.map((card, index) => (
-          <PlayingCard 
-            key={index} 
-            card={card} 
-            faceUp={true}
-            sx={{ width: '50px', height: '70px' }}
-          />
-        ))}
-        
-        {placeholderCards.map((_, index) => (
-          <Box 
-            key={`placeholder-${index}`} 
-            sx={{ 
-              width: '50px',
-              height: '70px',
-              borderRadius: '4px',
-              border: '1px dashed rgba(255,255,255,0.3)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}
-          >
-            {/* 空白牌位 */}
-          </Box>
-        ))}
+        {renderCards()}
       </CardsContainer>
     </CommunityCardsContainer>
   );

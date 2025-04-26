@@ -6,7 +6,8 @@
 // 音频缓存对象
 let audioCache = {
   shuffle: null,
-  deal: null
+  deal: null,
+  fold: null
 };
 
 /**
@@ -18,24 +19,28 @@ export const preloadAudio = () => {
     // 创建音频对象
     audioCache.shuffle = new Audio('/assets/sounds/card-shuffle.mp3');
     audioCache.deal = new Audio('/assets/sounds/card-deal.mp3');
+    audioCache.fold = new Audio('/assets/sounds/card-fold.mp3');
     
     // 设置音频参数
     audioCache.shuffle.volume = 0.8;
     audioCache.deal.volume = 0.7;
+    audioCache.fold.volume = 0.7;
     
     // 预加载
     let loaded = 0;
     const checkAllLoaded = () => {
       loaded++;
-      if (loaded >= 2) resolve();
+      if (loaded >= 3) resolve();
     };
     
     audioCache.shuffle.addEventListener('canplaythrough', checkAllLoaded);
     audioCache.deal.addEventListener('canplaythrough', checkAllLoaded);
+    audioCache.fold.addEventListener('canplaythrough', checkAllLoaded);
     
     // 触发加载
     audioCache.shuffle.load();
     audioCache.deal.load();
+    audioCache.fold.load();
     
     // 确保5秒后无论如何都会解析Promise
     setTimeout(resolve, 5000);
@@ -98,6 +103,25 @@ export const playDealSounds = (count = 1, interval = 200) => {
 };
 
 /**
+ * 播放弃牌音效
+ * @returns {void}
+ */
+export const playFoldSound = () => {
+  if (!audioCache.fold) {
+    audioCache.fold = new Audio('/assets/sounds/card-fold.mp3');
+  }
+  
+  // 重置音频
+  audioCache.fold.currentTime = 0;
+  
+  // 播放
+  audioCache.fold.play()
+    .catch(err => {
+      console.warn('无法播放弃牌音效:', err);
+    });
+};
+
+/**
  * 计算卡牌动画持续时间
  * @param {number} playerCount 玩家数量
  * @param {number} cardsPerPlayer 每位玩家的卡牌数量
@@ -132,6 +156,7 @@ export default {
   preloadAudio,
   playShuffleSound,
   playDealSounds,
+  playFoldSound,
   calculateAnimationDuration,
   stopAllAudio
 }; 

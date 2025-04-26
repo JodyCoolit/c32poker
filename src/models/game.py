@@ -257,10 +257,6 @@ class Game:
                 self.current_player = self.players[self.current_player_idx]["name"]
                 print(f"设置当前玩家为: {self.current_player}，索引: {self.current_player_idx}")
                 
-                # 强制启动计时器
-                self.turn_start_time = time.time()
-                print(f"强制设置计时器启动时间: {self.turn_start_time}")
-                
                 # 尝试启动计时器
                 self.start_turn_timer()
             else:
@@ -292,52 +288,12 @@ class Game:
             current_player = self.players[self.current_player_idx]
             player_name = current_player["name"]
             
-            # 对非弃牌操作，取消当前玩家计时器
-            if action != "discard":
-                self.cancel_turn_timer()
-            
             # 确保金额是数值类型，允许小数
             try:
                 amount = float(amount) if amount else 0
             except (TypeError, ValueError):
                 print(f"无效的金额值: {amount}")
                 return {"success": False, "message": f"无效的金额值: {amount}"}
-        
-            # 处理不同类型的动作
-            if action == "discard":
-                # 弃牌操作 - discard_index存储在amount参数中
-                discard_index = int(amount)
-                
-                # 检查是否已经弃牌
-                if current_player.get("has_discarded", False):
-                    print(f"玩家 {player_name} 已经弃过牌")
-                    return {"success": False, "message": "玩家已经弃过牌"}
-                    
-                # 检查选择的牌是否有效
-                hand = current_player.get("hand", [])
-                if discard_index < 0 or discard_index >= len(hand):
-                    print(f"无效的弃牌索引: {discard_index}, 玩家手牌: {len(hand)}张")
-                    return {"success": False, "message": f"无效的弃牌索引: {discard_index}"}
-                    
-                # 移除选中的牌
-                discarded_card = hand.pop(discard_index)
-                current_player["discarded_card"] = discarded_card
-                current_player["has_discarded"] = True
-                
-                print(f"玩家 {player_name} 弃掉了第 {discard_index} 张牌: {discarded_card}")
-                
-                # 记录动作到历史记录
-                self.action_history.append({
-                    "round": self.betting_round,
-                    "player_idx": self.current_player_idx,
-                    "player": player_name,
-                    "action": "discard",
-                    "discard_index": discard_index,
-                    "timestamp": time.time()
-                })
-                
-                # 注意：不移动到下一个玩家，因为当前玩家需要继续执行其他动作
-                return {"success": True, "message": "成功弃牌", "discarded_card": discarded_card}
             
             # 检查玩家是否需要先弃牌
             if len(current_player["hand"]) == 3 and not current_player.get("has_discarded", False):
@@ -645,8 +601,6 @@ class Game:
             # 使用advance_player方法而不是不存在的方法
             self.advance_player()
             
-            # 启动当前玩家的行动计时器
-            self.start_turn_timer()
                 
             # 打印当前状态
             print(f"进入{self.betting_round}轮, 当前玩家索引: {self.current_player_idx}, 底池: {self.pot}")
@@ -805,8 +759,10 @@ class Game:
         if self.turn_timer:
             self.turn_timer.cancel()
             
-        # 记录当前时间作为计时器开始时间
-        self.turn_start_time = time.time()
+        # 记录当前时间作为计时器开始时间，确保始终设置
+        if not hasattr(self, 'turn_start_time') or self.turn_start_time is None:
+            self.turn_start_time = time.time()
+            print(f"计时器初始化: 设置时间为 {self.turn_start_time}")
         
         # 创建超时处理计时器
         self.turn_timer = threading.Timer(self.player_turn_time, self.handle_timeout)
@@ -862,9 +818,6 @@ class Game:
             self.turn_timer.cancel()
             self.turn_timer = None
             
-        # 清除计时器开始时间
-        self.turn_start_time = None
-            
     def cancel_all_timers(self):
         """Cancel all active timers (turn and next hand)"""
         try:
@@ -910,173 +863,15 @@ class Game:
             print("Game over: only one player with chips remaining")
             return
         
-        # Move dealer button
-        self.dealer_idx = (self.dealer_idx + 1) % len(self.players)
-        while self.dealer_idx not in self.active_players:
-            self.dealer_idx = (self.dealer_idx + 1) % len(self.players)
+        # Move dealer button - 修正dealer位置计算
+        current_dealer_index = self.active_players.index(self.dealer_idx)
+        # 移动到下一个活跃玩家位置
+        next_dealer_index = (current_dealer_index + 1) % len(self.active_players)
+        self.dealer_idx = self.active_players[next_dealer_index]
+        print(f"移动庄家按钮: {current_dealer_index} -> {next_dealer_index} (位置 {self.dealer_idx})")
             
         # 调用start_round方法来处理发牌、盲注和玩家设置
         self.start_round()
-        
-    def process_action(self, player_idx, action, amount=0, discard_index=None):
-        """Process a player action (check, call, bet, raise, fold)"""
-        try:
-            # 允许弃牌操作跳过当前玩家回合检查
-            if action != "discard" and (player_idx not in self.active_players or player_idx != self.current_player_idx):
-                print(f"Invalid player index {player_idx}, current player is {self.current_player_idx}")
-                return False
-
-            # 获取玩家
-            if player_idx not in self.players:
-                print(f"Player {player_idx} not found in players dictionary")
-                return False
-            
-            player = self.players[player_idx]
-
-            # Check if player needs to discard first
-            if len(player["hand"]) == 3 and not player.get("has_discarded", False) and action != "discard":
-                print(f"Player must discard a card first")
-                return False
-
-            # Cancel the current turn timer since player has acted
-            if action != "discard":
-                self.cancel_turn_timer()
-            
-            # 确保金额是数值类型，允许小数
-            try:
-                amount = float(amount) if amount else 0
-            except (TypeError, ValueError):
-                print(f"无效的金额值: {amount}")
-                return False
-            
-            player_name = player["name"]
-            
-            # Handle discard action
-            if action == "discard":
-                # 检查是否已经弃牌    
-                if player.get("has_discarded", False):
-                    print(f"Player has already discarded a card")
-                    return False
-                
-                if discard_index is None or not isinstance(discard_index, int):
-                    print(f"Invalid discard index: {discard_index}")
-                    return False
-                    
-                if discard_index < 0 or discard_index >= len(player["hand"]):
-                    print(f"Discard index out of range: {discard_index}")
-                    return False
-                    
-                # Remove the card at the specified index but save it for visibility
-                hand = player["hand"]
-                discarded_card = hand.pop(discard_index)
-                player["discarded_card"] = discarded_card
-                player["has_discarded"] = True
-                
-                print(f"Player {player_name} discarded card at index {discard_index}: {discarded_card}")
-                
-                # Record action in history
-                self.action_history.append({
-                    "round": self.betting_round,
-                    "player_idx": player_idx,
-                    "player": player_name,
-                    "action": "discard",
-                    "discard_index": discard_index,
-                    "timestamp": time.time()
-                })
-                
-                # 注意：不移动到下一个玩家，因为当前玩家需要继续执行其他动作
-                return True
-            
-            # Record action in history with timestamp
-            self.action_history.append({
-                "round": self.betting_round,
-                "player_idx": player_idx,
-                "player": player_name,
-                "action": action,
-                "amount": amount,
-                "timestamp": time.time()
-            })
-            
-            if action == "fold":
-                # Player folds
-                self.active_players.remove(player_idx)
-                print(f"Player {player_name} folds")
-                
-                # If only one player remains active, they win the pot
-                if len(self.active_players) == 1:
-                    self.finish_hand()
-                    return True
-                    
-            elif action == "check":
-                # Player checks (no additional betting)
-                if self.current_bet > player["bet_amount"]:
-                    print(f"Invalid check, current bet is {self.current_bet}, player bet is {player['bet_amount']}")
-                    return False
-                print(f"Player {player_name} checks")
-                
-            elif action == "call":
-                # Player calls the current bet
-                call_amount = self.current_bet - player["bet_amount"]
-                if call_amount <= 0:
-                    print(f"Invalid call, current bet is {self.current_bet}, player bet is {player['bet_amount']}")
-                    return False
-                    
-                # Check if player has enough chips
-                if player["chips"] < call_amount:
-                    call_amount = player["chips"]  # All-in
-                    
-                player["chips"] -= call_amount
-                player["bet_amount"] += call_amount
-                print(f"Player {player_name} calls {call_amount}")
-            
-            elif action in ["bet", "raise"]:
-                # Player bets or raises
-                if amount <= self.current_bet:
-                    print(f"Invalid {action}, amount {amount} must be greater than current bet {self.current_bet}")
-                    return False
-                
-                # Check if raise is at least minimum raise
-                min_raise = self.current_bet * 2 if self.current_bet > 0 else self.big_blind
-                if amount < min_raise and amount < player["chips"]:
-                    print(f"Invalid {action}, amount {amount} must be at least {min_raise}")
-                    return False
-                
-                # Check if player has enough chips
-                if player["chips"] < amount:
-                    amount = player["chips"]  # All-in
-                
-                # Calculate the actual amount to add to the bet
-                to_add = amount - player["bet_amount"]
-                player["chips"] -= to_add
-                player["bet_amount"] = amount
-                self.current_bet = amount
-                
-                # Reset acted flags since betting has changed
-                for position in self.active_players:
-                    if position != player_idx:
-                        self.player_acted[position] = False
-                        
-                self.player_acted[player_idx] = True
-                print(f"Player {player_name} {action}s {amount}")
-            
-            else:
-                print(f"Unknown action: {action}")
-                return False
-            
-            # Check if all active players have acted
-            if self.check_all_players_acted():
-                # All players have acted, advance to next betting round
-                self.advance_betting_round()
-            else:
-                # Move to next player
-                self.advance_player()
-                
-            return True
-            
-        except Exception as e:
-            print(f"Error in Game.process_action: {str(e)}")
-            traceback.print_exc()
-            return False
 
     def finish_hand(self):
         """
@@ -1361,6 +1156,76 @@ class Game:
         """重置所有玩家的当前下注"""
         for position, player in self.players.items():
             self.players[position]['bet_amount'] = 0
+
+    def handle_discard(self, player_idx, discard_index):
+        """
+        处理弃牌操作 - 该操作可以在任何时候执行，不需要是当前玩家的回合
+        
+        Args:
+            player_idx: 执行弃牌的玩家索引
+            discard_index: 要弃掉的牌的索引
+            
+        Returns:
+            dict: 包含操作结果的字典
+        """
+        try:
+            # 确保玩家在游戏中
+            if player_idx not in self.players:
+                print(f"玩家 {player_idx} 不在玩家列表中")
+                return {"success": False, "message": "玩家不在游戏中"}
+            
+            # 获取玩家信息
+            player = self.players[player_idx]
+            player_name = player["name"]
+            
+            # 检查是否已经弃牌
+            if player.get("has_discarded", False):
+                print(f"玩家 {player_name} 已经弃过牌")
+                return {"success": False, "message": "玩家已经弃过牌"}
+            
+            # 检查弃牌索引是否有效
+            try:
+                discard_index = int(discard_index)
+            except (TypeError, ValueError):
+                print(f"无效的弃牌索引: {discard_index}")
+                return {"success": False, "message": "无效的弃牌索引"}
+            
+            # 检查手牌
+            hand = player.get("hand", [])
+            if not hand:
+                print(f"玩家 {player_name} 没有手牌")
+                return {"success": False, "message": "玩家没有手牌"}
+            
+            # 检查索引是否在有效范围内
+            if discard_index < 0 or discard_index >= len(hand):
+                print(f"弃牌索引超出范围: {discard_index}, 玩家手牌: {len(hand)}张")
+                return {"success": False, "message": f"弃牌索引超出范围: {discard_index}"}
+            
+            # 移除选中的牌
+            discarded_card = hand.pop(discard_index)
+            player["discarded_card"] = discarded_card
+            player["has_discarded"] = True
+            
+            print(f"玩家 {player_name} 弃掉了第 {discard_index} 张牌: {discarded_card}")
+            
+            # 记录动作到历史记录
+            self.action_history.append({
+                "round": self.betting_round,
+                "player_idx": player_idx,
+                "player": player_name,
+                "action": "discard",
+                "discard_index": discard_index,
+                "timestamp": time.time()
+            })
+            
+            # 注意：不移动到下一个玩家，弃牌操作不影响游戏流程
+            return {"success": True, "message": "成功弃牌", "discarded_card": discarded_card}
+            
+        except Exception as e:
+            print(f"处理弃牌操作时发生错误: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "message": f"处理弃牌操作时发生错误: {str(e)}"}
 
 async def timer_update_task():
     # 在函数内部导入以避免循环导入

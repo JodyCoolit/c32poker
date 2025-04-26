@@ -670,7 +670,7 @@ class Room:
                 "big_blind": self.big_blind,
                 "status": self.status,
                 "game_duration_hours": self.game_duration_hours,
-                "owner": self.owner
+                "owner": self.owner,
             }
             
             # 计算并添加剩余时间

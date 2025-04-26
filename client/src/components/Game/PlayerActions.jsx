@@ -192,16 +192,11 @@ const PlayerActions = ({
   onRaise = () => {},
   onFold = () => {},
   onAllIn = () => {},
+  playerBetAmount = 0,
 }) => {
-  // Calculate initial bet amount (default to 2x current bet or min bet)
-  const defaultBetAmount = Math.max(currentBet * 2, minBet);
-  
-  // State for bet amount
-  const [betAmount, setBetAmount] = useState(defaultBetAmount);
-  const [inputValue, setInputValue] = useState(defaultBetAmount.toFixed(1));
-  
-  // Call amount is the difference from current bet
-  const callAmount = currentBet;
+  const [showRaiseOptions, setShowRaiseOptions] = useState(false);
+  const [betAmount, setBetAmount] = useState(minBet);
+  const [inputValue, setInputValue] = useState(minBet.toFixed(1));
   
   // Reference to input element
   const inputRef = useRef(null);
@@ -209,6 +204,9 @@ const PlayerActions = ({
   // Min and max values for slider and input
   const minBetValue = Math.max(currentBet, minBet);
   const maxBetValue = playerChips;
+  
+  // Calculate call amount - how much more the player needs to add to match the current bet
+  const callAmount = Math.max(0, currentBet - playerBetAmount);
   
   // Update bet amount when minimum bet changes
   useEffect(() => {
@@ -306,24 +304,26 @@ const PlayerActions = ({
       <ActionsContainer>
         {/* Top row: FOLD, CHECK, BET INPUT */}
         <PrimaryActionsRow>
-          <ActionButton
-            color="error" 
-            variant="contained"
+          <ActionButton 
+            color="primary" 
+            variant="contained" 
             onClick={onFold}
             disabled={loading}
-            sx={{ flex: 0.9 }}
+            sx={{ flex: 0.9, bgcolor: 'rgb(25, 118, 210) !important', '&:hover': { bgcolor: 'rgb(21, 101, 192) !important' } }}
           >
             {loading ? <CircularProgress size={16} color="inherit" /> : 'FOLD'}
           </ActionButton>
-
-            <ActionButton
+          
+          <ActionButton
             color="success" 
             variant="contained"
             onClick={canCheck ? onCheck : onCall}
-              disabled={loading}
-            sx={{ flex: 0.9 }}
+            disabled={loading}
+            sx={{ flex: 0.9, bgcolor: 'rgb(46, 125, 50) !important', '&:hover': { bgcolor: 'rgb(39, 107, 43) !important' } }}
           >
-            {loading ? <CircularProgress size={16} color="inherit" /> : (canCheck ? 'CHECK' : `CALL ${callAmount}`)}
+            {loading ? 
+              <CircularProgress size={16} color="inherit" /> : 
+              (canCheck ? 'CHECK' : `CALL ${callAmount.toFixed(1)}`)}
           </ActionButton>
           
           <BetInput
@@ -385,12 +385,12 @@ const PlayerActions = ({
           {/* Confirmation button */}
               <Box>
             <ActionButton
-              color="primary"
+              color="error"
                 variant="contained"
                 onClick={handleRaise}
                 disabled={loading}
               fullWidth
-              sx={{ minHeight: '36px' }}
+              sx={{ minHeight: '36px', bgcolor: 'rgb(211, 47, 47) !important', '&:hover': { bgcolor: 'rgb(178, 40, 40) !important' } }}
               >
               {loading ? <CircularProgress size={18} color="inherit" /> : `BET ${betAmount.toFixed(1)}`}
             </ActionButton>

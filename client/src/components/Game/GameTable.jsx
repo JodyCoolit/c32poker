@@ -470,8 +470,7 @@ const GameTable = () => {
     if (gameState && gameState.game_end_time) {
       try {
         // 获取游戏阶段（优先从gamePhase字段获取，然后从game.game_phase字段获取）
-        const gamePhase = gameState.gamePhase || 
-                        (gameState.game ? gameState.game.game_phase : null);
+        const gamePhase = gameState.game ? gameState.game.game_phase : null;
         
         // 记录当前游戏阶段
         console.log('当前游戏阶段:', gamePhase || '未定义');
@@ -1627,6 +1626,25 @@ const GameTable = () => {
     
     fetchCurrentUser();
     
+    // 为 gameUpdate 事件创建一个专门的处理函数
+    const handleGameUpdate = (updateData) => {
+      console.log('处理游戏更新:', updateData);
+
+      // 处理弃牌动作
+      if (updateData.action === 'discard' && updateData.player === currentUser) {
+        console.log('处理自己的弃牌操作:', updateData);
+        // 如果玩家弃掉了自己的牌
+        if (updateData.result && updateData.result.discarded_card) {
+          console.log('设置弃掉的牌:', updateData.result.discarded_card);
+          setDiscardedCard(updateData.result.discarded_card);
+        }
+      }
+    };
+
+    // 同时注册两个不同的事件监听器
+    gameService.onGameStateUpdate(roomId, handleGameStateUpdate); // 已有的
+    const gameUpdateUnsubscribe = gameService.addEventListener('gameUpdate', handleGameUpdate); // 需要添加的
+    
     // 组件卸载时清理
             return () => {
       console.log('===== 组件卸载，清理事件监听器 =====');
@@ -1635,6 +1653,7 @@ const GameTable = () => {
       disconnectUnsubscribe && disconnectUnsubscribe();
       errorUnsubscribe && errorUnsubscribe();
       roomUpdateUnsubscribe && roomUpdateUnsubscribe();
+      gameUpdateUnsubscribe && gameUpdateUnsubscribe(); // 添加这一行
       
       // 确保所有状态重置
       setLoading(false);
@@ -1695,9 +1714,7 @@ const GameTable = () => {
     const isDirectGameStateFormat = data && (data.game_state || data.game);
     
     // 提取旧的游戏阶段（更新前）
-    const oldGamePhase = gameState.status || 
-                        (gameState.game && gameState.game.game_phase) || 
-                        (gameState.status === "playing" ? "PRE_FLOP" : "WAITING");
+    const oldGamePhase = gameState.gamePhase;
     
     // 根据不同格式处理数据
     let newGameState;
@@ -1826,9 +1843,10 @@ const GameTable = () => {
                          (newGameState.game && newGameState.game.game_phase) || 
                          (newGameState.status === "playing" ? "PRE_FLOP" : "WAITING");
       
+      console.log('oldGamePhase:', oldGamePhase);
       // 检测游戏状态从WAITING变为PRE_FLOP时触发发牌动画
-      if (oldGamePhase === "WAITING" && newGamePhase === "PRE_FLOP") {
-        console.log("检测到游戏开始从WAITING变为PRE_FLOP，触发发牌动画");
+      if (oldGamePhase !== "PRE_FLOP" && newGamePhase === "PRE_FLOP") {
+        console.log("检测到游戏开始从非PRE_FLOP变为PRE_FLOP，触发发牌动画");
         
         // 使用与测试功能相同的动画处理方法
         if (!showDealingAnimation) {
@@ -1935,6 +1953,9 @@ const GameTable = () => {
     
     // 更新游戏状态
       setGameState(newGameState);
+      console.log('更新newGameState', newGameState)
+      gameState.gamePhase = newGameState.game?.game_phase
+      console.log('更新newGameState gameState.gamePhase', gameState.gamePhase)
       
       // 只有在游戏阶段为PRE_FLOP、FLOP、TURN或RIVER且有current_player_idx时，才处理玩家思考时间
       if (newGameState.gamePhase && 
@@ -1960,33 +1981,31 @@ const GameTable = () => {
         const isAfterDiscard = (playerHand.length === 3 && newGameState.my_hand.length === 2) || 
                                (discardedCard && playerHand.length > newGameState.my_hand.length);
         
-        // 添加延迟，确保发牌动画完成后才显示手牌
-        setTimeout(() => {
-          // 如果是弃牌后的更新，保留弃掉的牌信息
-          if (isAfterDiscard && discardedCard) {
-            console.log('弃牌后更新手牌，保留弃掉的牌信息:', discardedCard);
-            
-            // 创建新的手牌数组，先放置弃掉的牌，然后是当前手牌
-            const updatedHand = [
-              { 
-                ...discardedCard, 
-                isDiscarded: true  // 标记为已弃牌
-              },
-              ...newGameState.my_hand
-            ];
-            
-            console.log('更新后的手牌数组:', updatedHand);
-            setPlayerHand(updatedHand);
-          } else {
-            // 常规更新，直接设置手牌
-            setPlayerHand(newGameState.my_hand);
-            // 如果手牌数量变化且没有弃掉的牌，重置弃掉的牌状态
-            if (playerHand.length !== newGameState.my_hand.length) {
-              setDiscardedCard(null);
-            }
+        // 移除延迟，立即处理手牌更新
+        // 如果是弃牌后的更新，保留弃掉的牌信息
+        if (isAfterDiscard && discardedCard) {
+          console.log('弃牌后更新手牌，保留弃掉的牌信息:', discardedCard);
+          
+          // 创建新的手牌数组，先放置弃掉的牌，然后是当前手牌
+          const updatedHand = [
+            { 
+              ...discardedCard, 
+              isDiscarded: true  // 标记为已弃牌
+            },
+            ...newGameState.my_hand
+          ];
+          
+          console.log('更新后的手牌数组:', updatedHand);
+          setPlayerHand(updatedHand);
+        } else {
+          // 常规更新，直接设置手牌
+          setPlayerHand(newGameState.my_hand);
+          // 如果手牌数量变化且没有弃掉的牌，重置弃掉的牌状态
+          if (playerHand.length !== newGameState.my_hand.length) {
+            setDiscardedCard(null);
           }
-          console.log('延迟后显示手牌');
-        }, 3000);
+        }
+        console.log('立即显示手牌');
       }
 
       // 检查弃牌状态更新
@@ -2006,6 +2025,8 @@ const GameTable = () => {
             if (!discardedCard && currentPlayerData.discarded_card) {
               console.log('从服务器获取弃掉的牌:', currentPlayerData.discarded_card);
               setDiscardedCard(currentPlayerData.discarded_card);
+              // 播放弃牌音效
+              dealingAnimationUtils.playFoldSound();
             } 
           } else if (currentPlayerData.has_discarded === false) {
             // 如果服务器明确指出未弃牌，确保重置弃牌状态
@@ -2728,21 +2749,7 @@ const GameTable = () => {
                   mb: 1
                 }}
               >
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: 'white', 
-                    display: 'block',
-                    textAlign: 'center',
-                    mb: 0.5,
-                    bgcolor: 'rgba(0,0,0,0.6)', 
-                    px: 1, 
-                    py: 0.5, 
-                    borderRadius: 1 
-                  }}
-                >
-                  弃牌
-                </Typography>
+
                 <DiscardedCard card={discardedCard} visible={true} />
               </Box>
             )}
@@ -2757,21 +2764,7 @@ const GameTable = () => {
                 transition: 'all 0.3s ease',
               }}
             >
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  color: 'white', 
-                  display: 'block',
-                  textAlign: 'center',
-                  mb: 0.5,
-                  bgcolor: 'rgba(0,0,0,0.6)', 
-                  px: 1, 
-                  py: 0.5, 
-                  borderRadius: 1 
-                }}
-              >
-                我的手牌
-              </Typography>
+
               
               <Box sx={{ display: 'flex', flexDirection: 'row', gap: 0.5 }}>
                 {/* 只显示没有isDiscarded标记的牌 */}
@@ -2934,10 +2927,12 @@ const GameTable = () => {
               minBet={gameState.minBet || gameState.game?.current_bet || 0}
               currentBet={gameState.currentBet || gameState.game?.current_bet || 0}
               pot={gameState.pot || gameState.game?.pot || 0}
-              canCheck={true}
+              canCheck={(gameState.currentBet === 0 || gameState.game?.current_bet === 0 || 
+                (currentPlayer?.bet_amount && currentPlayer.bet_amount >= (gameState.currentBet || gameState.game?.current_bet || 0)))}
               canRaise={true}
               canCall={true}
               loading={loading}
+              playerBetAmount={currentPlayer?.bet_amount || 0}
               onCheck={() => handleAction('check')}
               onCall={() => handleAction('call')}
               onRaise={(amount) => {

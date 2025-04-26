@@ -333,7 +333,8 @@ async def game_websocket_endpoint(
                             
                             # 只有弃牌操作可以在非玩家回合执行
                             if action == "discard":
-                                result = room.game.handle_action("discard", card_index)
+                                # 使用专门的方法处理弃牌
+                                result = room.game.handle_discard(player_position, card_index)
                             elif not is_current_player:
                                 result = {"success": False, "message": "Not your turn to act"}
                             else:

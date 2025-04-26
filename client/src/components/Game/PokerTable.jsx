@@ -275,11 +275,11 @@ const PokerTable = ({
             gap: 2,
             zIndex: 5,
             padding: 3,
-            backgroundColor: 'rgba(0,0,0,0.7)',
+            backgroundColor: 'transparent',
             borderRadius: 2,
             backdropFilter: 'blur(5px)',
-            boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: 'none',
+            border: 'none',
             minWidth: '280px',
           }}
         >
@@ -333,12 +333,14 @@ const PokerTable = ({
           {isGameStarted && (
             <>
               {/* CommunityCards component will decide whether to render based on gamePhase */}
-              <CommunityCards 
-                communityCards={communityCards} 
-                gamePhase={extractedGamePhase}
-                potAmount={pot}
-                status={status}
-              />
+              <Box sx={{ transform: 'scale(1.5)' }}>
+                <CommunityCards 
+                  communityCards={communityCards} 
+                  gamePhase={extractedGamePhase}
+                  potAmount={pot}
+                  status={status}
+                />
+              </Box>
               
             </>
           )}
