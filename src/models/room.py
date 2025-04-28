@@ -723,29 +723,6 @@ class Room:
                 "error": str(e)
             }
 
-    def advance_player(self):
-        try:
-            # Find the next active player
-            idx = (self.current_player_idx + 1) % len(self.players)
-            while idx not in self.active_players:
-                idx = (idx + 1) % len(self.players)
-            self.current_player_idx = idx
-            
-            # Update current_player attribute
-            if 0 <= self.current_player_idx < len(self.players):
-                self.current_player = self.players[self.current_player_idx]["name"]
-                print(f"Advanced to player {self.current_player} (index {self.current_player_idx})")
-                
-                # 修改这里：删除条件检查，无条件启动计时器
-                self.start_turn_timer()
-            else:
-                self.current_player = None
-                print(f"Warning: current_player_idx {self.current_player_idx} is out of range (0-{len(self.players)-1})")
-        except Exception as e:
-            import traceback
-            print(f"Error in Game.advance_player: {str(e)}")
-            traceback.print_exc()
-
     def change_seat(self, username, new_seat_index):
         """Allow a player to change seats
         

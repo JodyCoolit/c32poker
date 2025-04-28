@@ -32,6 +32,7 @@ import dealingAnimationUtils from '../../utils/dealingAnimationUtils';
 import { keyframes } from 'styled-components';
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset';
 import DiscardedCard from './DiscardedCard';
+import soundEffects from '../../utils/soundEffects';
 
 // 游戏表格容器样式
 const GameTableContainer = styled(Box)(({ theme }) => ({
@@ -1672,6 +1673,14 @@ const GameTable = () => {
     };
   }, [roomId, currentUser, navigate, enqueueSnackbar]);
   
+  // 初始化时预加载音效
+  useEffect(() => {
+    // 预加载音效
+    soundEffects.preloadSounds().catch(err => {
+      console.warn("音效预加载失败:", err);
+    });
+  }, []);
+  
   // 判断是否可以开始游戏
   const canStartGame = gameState.gamePhase === 'WAITING' && 
                        gameState.players?.length >= 2 && 
@@ -1844,20 +1853,34 @@ const GameTable = () => {
                          (newGameState.status === "playing" ? "PRE_FLOP" : "WAITING");
       
       console.log('oldGamePhase:', oldGamePhase);
-      // 检测游戏状态从WAITING变为PRE_FLOP时触发发牌动画
-      if (oldGamePhase !== "PRE_FLOP" && newGamePhase === "PRE_FLOP") {
-        console.log("检测到游戏开始从非PRE_FLOP变为PRE_FLOP，触发发牌动画");
+      
+      // 检测游戏阶段变化并播放相应音效
+      if (oldGamePhase !== newGamePhase) {
+        console.log(`游戏阶段变化: ${oldGamePhase} -> ${newGamePhase}`);
         
-        // 使用与测试功能相同的动画处理方法
-        if (!showDealingAnimation) {
-          // 触发发牌动画
-          setShowDealingAnimation(true);
+        // 检测FLOP, TURN, RIVER阶段变化并播放音效
+        if ((oldGamePhase === 'PRE_FLOP' && newGamePhase === 'FLOP') ||
+            (oldGamePhase === 'FLOP' && newGamePhase === 'TURN') ||
+            (oldGamePhase === 'TURN' && newGamePhase === 'RIVER')) {
+          console.log(`播放翻牌音效: ${newGamePhase}阶段`);
+          soundEffects.playFlopSound();
+        }
+        
+        // 检测游戏开始状态
+        if (oldGamePhase !== "PRE_FLOP" && newGamePhase === "PRE_FLOP") {
+          console.log("检测到游戏开始从非PRE_FLOP变为PRE_FLOP，触发发牌动画");
           
-          // 预加载音频
-          dealingAnimationUtils.preloadAudio().catch(err => {
-            console.warn("音频预加载失败:", err);
-            // 即使音频加载失败，也继续执行动画
-          });
+          // 使用与测试功能相同的动画处理方法
+          if (!showDealingAnimation) {
+            // 触发发牌动画
+            setShowDealingAnimation(true);
+            
+            // 预加载音频
+            dealingAnimationUtils.preloadAudio().catch(err => {
+              console.warn("音频预加载失败:", err);
+              // 即使音频加载失败，也继续执行动画
+            });
+          }
         }
       }
       

@@ -93,12 +93,13 @@ const CommunityCards = ({
       ));
     }
     
-    // 其他阶段，先显示已知的牌，然后是占位符
+    // FLOP、TURN和RIVER阶段
+    // 先显示已知的牌，然后显示卡背（而不是占位符）
     return (
       <>
         {visibleCards.map((card, index) => (
           <PlayingCard 
-            key={index} 
+            key={`faceup-${index}`} 
             card={card} 
             faceUp={true}
             sx={{ width: '60px', height: '90px', margin: '2px' }}
@@ -106,21 +107,11 @@ const CommunityCards = ({
         ))}
         
         {Array(5 - visibleCards.length).fill(null).map((_, index) => (
-          <Box 
-            key={`placeholder-${index}`} 
-            sx={{ 
-              width: '60px',
-              height: '90px',
-              borderRadius: '5px',
-              border: '1px dashed rgba(255,255,255,0.3)',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              margin: '2px'
-            }}
-          >
-            {/* 空白牌位 */}
-          </Box>
+          <PlayingCard 
+            key={`facedown-${index + visibleCards.length}`} 
+            faceUp={false}
+            sx={{ width: '60px', height: '90px', margin: '2px' }}
+          />
         ))}
       </>
     );

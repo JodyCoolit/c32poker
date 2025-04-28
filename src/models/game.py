@@ -452,7 +452,7 @@ class Game:
             player = self.players[player_idx]
             # Combine player's hole cards with community cards
             cards = player["hand"] + self.community_cards
-            score = self.hand_evaluator.evaluate_hand(cards)
+            score = self.hand_evaluator.evaluate_hand(cards, self.community_cards)
             player_scores.append((player_idx, score))
             
         # Find the highest score
@@ -484,48 +484,62 @@ class Game:
         return {"winners": winners, "pot": self.pot}
     
     def deal_flop(self):
-        """Deal the flop - 3 community cards"""
-        print("Dealing the flop...")
-        # Clear any existing community cards
-        self.community_cards = []
-        
-        # Burn a card
-        burned = self.deck.draw()
-        print(f"Burned card: {burned}")
-        
-        # Deal three cards for the flop
-        for i in range(3):
-            card = self.deck.draw()
-            self.community_cards.append(card.to_dict())
-            print(f"Flop card {i+1}: {card}")
-        
-        print(f"Community cards after flop: {len(self.community_cards)} cards - {self.community_cards}")
+        """发放翻牌圈三张公共牌"""
+        try:
+            # 烧牌
+            if len(self.deck.cards) > 0:
+                self.deck.deal()
+                
+            # 发三张公共牌
+            for _ in range(3):
+                if len(self.deck.cards) > 0:
+                    card = self.deck.deal()
+                    # 将Card对象转换为字典再添加到community_cards
+                    self.community_cards.append(card.to_dict())
+                    print(f"发放公共牌: {card}")
+                else:
+                    print("牌组已空，无法发放更多公共牌")
+        except Exception as e:
+            print(f"Deal flop error: {e}")
+            traceback.print_exc()
             
     def deal_turn(self):
-        """Deal the turn - 1 more community card"""
-        print("Dealing the turn...")
-        # Burn a card
-        burned = self.deck.draw()
-        print(f"Burned card: {burned}")
-        
-        # Deal one card for the turn
-        turn_card = self.deck.draw()
-        print(f"Turn card: {turn_card}")
-        self.community_cards.append(turn_card.to_dict())
-        print(f"Community cards after turn: {len(self.community_cards)} cards - {self.community_cards}")
-        
+        """发放转牌圈一张公共牌"""
+        try:
+            # 烧牌
+            if len(self.deck.cards) > 0:
+                self.deck.deal()
+                
+            # 发一张转牌
+            if len(self.deck.cards) > 0:
+                card = self.deck.deal()
+                # 将Card对象转换为字典再添加到community_cards
+                self.community_cards.append(card.to_dict())
+                print(f"发放转牌: {card}")
+            else:
+                print("牌组已空，无法发放转牌")
+        except Exception as e:
+            print(f"Deal turn error: {e}")
+            traceback.print_exc()
+            
     def deal_river(self):
-        """Deal the river - 1 final community card"""
-        print("Dealing the river...")
-        # Burn a card
-        burned = self.deck.draw()
-        print(f"Burned card: {burned}")
-        
-        # Deal one card for the river
-        river_card = self.deck.draw()
-        print(f"River card: {river_card}")
-        self.community_cards.append(river_card.to_dict())
-        print(f"Community cards after river: {len(self.community_cards)} cards - {self.community_cards}")
+        """发放河牌圈一张公共牌"""
+        try:
+            # 烧牌
+            if len(self.deck.cards) > 0:
+                self.deck.deal()
+                
+            # 发一张河牌
+            if len(self.deck.cards) > 0:
+                card = self.deck.deal()
+                # 将Card对象转换为字典再添加到community_cards
+                self.community_cards.append(card.to_dict())
+                print(f"发放河牌: {card}")
+            else:
+                print("牌组已空，无法发放河牌")
+        except Exception as e:
+            print(f"Deal river error: {e}")
+            traceback.print_exc()
         
     def advance_player(self):
         try:
@@ -596,11 +610,51 @@ class Game:
             elif self.betting_round == 3:  # river
                 print("本手牌结束")
                 self.finish_hand()
-                
-            # 设置当前行动的玩家为庄家位后的第一个活跃玩家
-            # 使用advance_player方法而不是不存在的方法
-            self.advance_player()
+                return
             
+            # 设置下一个行动的玩家
+            if self.betting_round >= 1:  # flop及之后的轮次
+                # 从庄家位开始查找第一个活跃玩家
+                dealer_position = self.dealer_idx
+                first_player_idx = None
+                
+                # 获取所有活跃玩家，按位置排序
+                sorted_active_players = sorted(self.active_players)
+                
+                if sorted_active_players:
+                    # 找到庄家位在排序后的列表中的索引
+                    try:
+                        dealer_index = sorted_active_players.index(dealer_position)
+                    except ValueError:
+                        # 如果庄家不在活跃玩家中，使用第一个活跃玩家
+                        dealer_index = 0
+                        
+                    # 从庄家位置后开始循环查找第一个活跃玩家
+                    for i in range(1, len(sorted_active_players) + 1):
+                        next_idx = (dealer_index + i) % len(sorted_active_players)
+                        player_position = sorted_active_players[next_idx]
+                        if player_position in self.active_players:
+                            first_player_idx = player_position
+                            break
+                
+                # 如果没有找到，设置为第一个活跃玩家
+                if first_player_idx is None and self.active_players:
+                    first_player_idx = self.active_players[0]
+                
+                if first_player_idx is not None:
+                    self.current_player_idx = first_player_idx
+                    print(f"庄家位置后的第一个活跃玩家 {self.players[first_player_idx]['name']} (位置 {first_player_idx}) 将首先行动")
+                else:
+                    print("警告: 没有活跃玩家可以行动")
+            else:  # preflop轮
+                # preflop轮使用默认的advance_player方法
+                self.advance_player()
+            
+            # 如果设置了current_player_idx，同时更新current_player
+            if self.current_player_idx in self.players:
+                self.current_player = self.players[self.current_player_idx]["name"]
+                # 启动新玩家的计时器
+                self.start_turn_timer()
                 
             # 打印当前状态
             print(f"进入{self.betting_round}轮, 当前玩家索引: {self.current_player_idx}, 底池: {self.pot}")
@@ -609,58 +663,6 @@ class Game:
         except Exception as e:
             print(f"Advance betting round error: {e}")
             traceback.print_exc()
-
-    def deal_flop(self):
-        """发放翻牌圈三张公共牌"""
-        try:
-            # 烧牌
-            if len(self.deck.cards) > 0:
-                self.deck.deal()
-                
-            # 发三张公共牌
-            for _ in range(3):
-                if len(self.deck.cards) > 0:
-                    card = self.deck.deal()
-                    self.community_cards.append(card)
-                    print(f"发放公共牌: {card}")
-                else:
-                    print("牌组已空，无法发放更多公共牌")
-        except Exception as e:
-            print(f"Deal flop error: {e}")
-            
-    def deal_turn(self):
-        """发放转牌圈一张公共牌"""
-        try:
-            # 烧牌
-            if len(self.deck.cards) > 0:
-                self.deck.deal()
-                
-            # 发一张转牌
-            if len(self.deck.cards) > 0:
-                card = self.deck.deal()
-                self.community_cards.append(card)
-                print(f"发放转牌: {card}")
-            else:
-                print("牌组已空，无法发放转牌")
-        except Exception as e:
-            print(f"Deal turn error: {e}")
-            
-    def deal_river(self):
-        """发放河牌圈一张公共牌"""
-        try:
-            # 烧牌
-            if len(self.deck.cards) > 0:
-                self.deck.deal()
-                
-            # 发一张河牌
-            if len(self.deck.cards) > 0:
-                card = self.deck.deal()
-                self.community_cards.append(card)
-                print(f"发放河牌: {card}")
-            else:
-                print("牌组已空，无法发放河牌")
-        except Exception as e:
-            print(f"Deal river error: {e}")
 
     def get_state(self):
         """获取游戏状态"""
@@ -943,7 +945,7 @@ class Game:
                 cards = player["hand"] + self.community_cards
                 
                 # Evaluate the hand
-                hand_result = self.hand_evaluator.evaluate_hand(cards)
+                hand_result = self.hand_evaluator.evaluate_hand(cards, self.community_cards)
                 hand_value = hand_result[1]
                 
                 if hand_value > best_hand_value:

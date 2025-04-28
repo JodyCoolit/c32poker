@@ -58,6 +58,26 @@ const CardCenter = styled(Box)({
 const parseCard = (cardCode) => {
   if (!cardCode) return { value: '', symbol: '', color: 'black' };
   
+  // 处理对象格式的卡牌数据
+  if (typeof cardCode === 'object') {
+    const { rank, suit, display } = cardCode;
+    
+    // 如果有display属性，优先使用
+    if (display) {
+      return parseCard(display);
+    }
+    
+    // 否则使用rank和suit
+    if (rank && suit) {
+      // 花色转为小写字母
+      const suitChar = typeof suit === 'string' ? suit.charAt(0).toLowerCase() : '';
+      return parseCard(rank + suitChar);
+    }
+    
+    return { value: '', symbol: '', color: 'black' };
+  }
+  
+  // 处理字符串格式的卡牌数据
   const value = cardCode.slice(0, -1);
   const suit = cardCode.slice(-1).toLowerCase();
   

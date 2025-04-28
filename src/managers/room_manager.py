@@ -516,32 +516,6 @@ class RoomManager:
         except Exception as e:
             print(f"启动计时器失败: {e}")
 
-    def advance_player(self):
-        try:
-            # 找到下一个活跃玩家
-            idx = (self.current_player_idx + 1) % len(self.players)
-            while idx not in self.active_players:
-                idx = (idx + 1) % len(self.players)
-            self.current_player_idx = idx
-            
-            # 更新当前玩家属性
-            if 0 <= self.current_player_idx < len(self.players):
-                self.current_player = self.players[self.current_player_idx]["name"]
-                print(f"切换到玩家 {self.current_player}，准备启动计时器")
-                
-                # 确保在任何情况下都设置计时器
-                print(f"DEBUG: 在advance_player中无条件启动计时器")
-                self.turn_start_time = time.time()  # 直接设置，不依赖于start_turn_timer
-                
-                # 然后再调用start_turn_timer作为备份
-                self.start_turn_timer()
-                
-                print(f"DEBUG: advance_player完成，turn_start_time = {self.turn_start_time}")
-            else:
-                self.current_player = None
-        except Exception as e:
-            print(f"advance_player出错: {e}")
-
     def get_turn_time_remaining(self):
         """获取当前玩家回合剩余时间"""
         # 打印调试信息

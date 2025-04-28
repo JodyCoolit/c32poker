@@ -18,8 +18,24 @@ class HandEvaluator:
     @staticmethod
     def evaluate_hand(hole_cards, community_cards):
         all_cards = hole_cards + community_cards
-        ranks = [card.rank for card in all_cards]
-        suits = [card.suit for card in all_cards]
+        
+        # 支持字典格式的卡牌
+        def extract_card_info(card):
+            if hasattr(card, 'rank') and hasattr(card, 'suit'):
+                # Card对象
+                return card.rank, card.suit
+            elif isinstance(card, dict) and 'rank' in card and 'suit' in card:
+                # 字典格式
+                return card['rank'], card['suit']
+            else:
+                # 试图打印更多信息以便调试
+                print(f"不支持的卡牌格式: {type(card)} - {card}")
+                raise ValueError(f"不支持的卡牌格式: {type(card)}")
+        
+        # 提取牌面信息
+        card_infos = [extract_card_info(card) for card in all_cards]
+        ranks = [rank for rank, _ in card_infos]
+        suits = [suit for _, suit in card_infos]
         
         # 转换牌面值为数字
         rank_values = [HandEvaluator.RANKS[rank] for rank in ranks]

@@ -10,6 +10,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import soundEffects from '../../utils/soundEffects';
 
 // Styled components
 const ActionsContainer = styled(Box)(({ theme }) => ({
@@ -202,7 +203,11 @@ const PlayerActions = ({
   const inputRef = useRef(null);
   
   // Min and max values for slider and input
-  const minBetValue = Math.max(currentBet, minBet);
+  // If no previous bet (can check), minimum bet is 1BB
+  // If previous bet exists, minimum raise is current bet + 1BB
+  const minBetValue = canCheck ? 
+    Math.max(minBet, 1) : // 1BB minimum bet when no previous bet
+    Math.max(currentBet + 1, minBet); // current bet + 1BB minimum raise
   const maxBetValue = playerChips;
   
   // Calculate call amount - how much more the player needs to add to match the current bet
@@ -224,25 +229,42 @@ const PlayerActions = ({
   // Handle preset bet buttons
   const handlePresetBet = (percentage) => {
     let amount;
+    
+    // Calculate the effective pot for betting
+    // If there's a current bet that the player needs to call first
+    const needToCallAmount = Math.max(0, currentBet - playerBetAmount);
+    const effectivePot = needToCallAmount > 0 ? pot + needToCallAmount : pot;
+    console.log('xxx currentBet', currentBet)
+    console.log('xxx needToCallAmount', needToCallAmount);
+    console.log('xxx effectivePot', effectivePot);
+    
     switch(percentage) {
       case 33:
-        amount = Math.round(pot * 0.33 * 10) / 10;
+        amount = Math.round(effectivePot * 0.33 * 10) / 10;
         break;
       case 50:
-        amount = Math.round(pot * 0.5 * 10) / 10;
+        amount = Math.round(effectivePot * 0.5 * 10) / 10;
         break;
       case 75:
-        amount = Math.round(pot * 0.75 * 10) / 10;
+        amount = Math.round(effectivePot * 0.75 * 10) / 10;
         break;
       case 125:
-        amount = Math.round(pot * 1.25 * 10) / 10;
+        amount = Math.round(effectivePot * 1.25 * 10) / 10;
         break;
       case 'all-in':
         amount = playerChips;
         break;
       default:
-        amount = pot;
+        amount = effectivePot;
     }
+    
+    // If there's a current bet, add the call amount to the raise
+    if (needToCallAmount > 0) {
+      amount += needToCallAmount;
+    }
+    
+    // Ensure amount is not less than the minimum required bet (minBetValue)
+    amount = Math.max(amount, minBetValue);
     
     const validAmount = Math.min(Math.max(amount, minBetValue), maxBetValue);
     setBetAmount(validAmount);
@@ -284,14 +306,42 @@ const PlayerActions = ({
     }
   };
 
+  // 预加载音效
+  useEffect(() => {
+    soundEffects.preloadSounds();
+  }, []);
+
   // Handle raise/bet action
   const handleRaise = () => {
+    // 播放下注音效
+    soundEffects.playBetSound();
+    
     if (betAmount >= playerChips * 0.99) {
       // If betting almost all chips, consider it an all-in
       onAllIn();
     } else {
       onRaise(betAmount);
     }
+  };
+
+  // 处理让牌和跟注
+  const handleCheckOrCall = () => {
+    if (canCheck) {
+      // 播放让牌音效
+      soundEffects.playCheckSound();
+      onCheck();
+    } else {
+      // 播放下注音效（跟注也算下注）
+      soundEffects.playBetSound();
+      onCall();
+    }
+  };
+
+  // 处理弃牌
+  const handleFold = () => {
+    // 播放弃牌音效
+    soundEffects.playFoldSound();
+    onFold();
   };
 
   // Don't render if it's not the user's turn
@@ -307,7 +357,7 @@ const PlayerActions = ({
           <ActionButton 
             color="primary" 
             variant="contained" 
-            onClick={onFold}
+            onClick={handleFold}
             disabled={loading}
             sx={{ flex: 0.9, bgcolor: 'rgb(25, 118, 210) !important', '&:hover': { bgcolor: 'rgb(21, 101, 192) !important' } }}
           >
@@ -317,7 +367,7 @@ const PlayerActions = ({
           <ActionButton
             color="success" 
             variant="contained"
-            onClick={canCheck ? onCheck : onCall}
+            onClick={handleCheckOrCall}
             disabled={loading}
             sx={{ flex: 0.9, bgcolor: 'rgb(46, 125, 50) !important', '&:hover': { bgcolor: 'rgb(39, 107, 43) !important' } }}
           >
