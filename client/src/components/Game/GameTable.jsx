@@ -106,15 +106,6 @@ const TableArea = styled(Box)(({ theme }) => ({
   minHeight: '92vh',
 }));
 
-// 底部动作区域
-const ActionArea = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(1),
-  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-  borderRadius: theme.shape.borderRadius,
-  minHeight: '70px',
-  maxHeight: '90px',
-}));
-
 
 /**
  * 游戏桌组件
@@ -126,7 +117,7 @@ const GameTable = () => {
   const { enqueueSnackbar } = useSnackbar();
   
   // 游戏状态
-    const [gameState, setGameState] = useState({
+  const [gameState, setGameState] = useState({
     players: [],
     pot: 0,
     gamePhase: 'WAITING',  // 确保初始状态设置为WAITING
@@ -162,8 +153,7 @@ const GameTable = () => {
   const [changeSeatDialogOpen, setChangeSeatDialogOpen] = useState(false);
   
   // 买入相关状态
-    const [selectedSeat, setSelectedSeat] = useState(null);
-  const [selectedAmount, setSelectedAmount] = useState(0);
+  const [selectedSeat, setSelectedSeat] = useState(null);
   const [seatDisplayData, setSeatDisplayData] = useState([]);
   const [buyInAmount, setBuyInAmount] = useState('');
   const [raiseAmount, setRaiseAmount] = useState('');
@@ -1642,9 +1632,8 @@ const GameTable = () => {
       }
     };
 
-    // 同时注册两个不同的事件监听器
-    gameService.onGameStateUpdate(roomId, handleGameStateUpdate); // 已有的
-    const gameUpdateUnsubscribe = gameService.addEventListener('gameUpdate', handleGameUpdate); // 需要添加的
+    // 注册gameUpdate事件监听器
+    const gameUpdateUnsubscribe = gameService.addEventListener('gameUpdate', handleGameUpdate);
     
     // 组件卸载时清理
             return () => {
@@ -1681,11 +1670,6 @@ const GameTable = () => {
     });
   }, []);
   
-  // 判断是否可以开始游戏
-  const canStartGame = gameState.gamePhase === 'WAITING' && 
-                       gameState.players?.length >= 2 && 
-                       gameState.players?.some(p => p.username === currentUser && p.isOwner);
-  
   // 处理游戏状态更新
   const handleGameStateUpdate = (data) => {
     // 仅在开发模式下输出详细调试日志
@@ -1696,7 +1680,7 @@ const GameTable = () => {
       // 详细记录数据结构，帮助调试
       if (data) {
         console.log('数据对象:', data);
-        console.log('数据包含 game_state:', !!data.game_state);
+        console.log('数据包含 game_state:', !!data.game?.game_state);
         console.log('数据包含 game:', !!data.game);
         
         // 检查游戏阶段是否存在
@@ -1723,7 +1707,8 @@ const GameTable = () => {
     const isDirectGameStateFormat = data && (data.game_state || data.game);
     
     // 提取旧的游戏阶段（更新前）
-    const oldGamePhase = gameState.gamePhase;
+    const oldGamePhase = gameState?.gamePhase;
+    console.log('即将更新游戏状态 oldGamePhase', oldGamePhase);
     
     // 根据不同格式处理数据
     let newGameState;
@@ -1751,10 +1736,10 @@ const GameTable = () => {
 
       // 重要: 提取嵌套的game对象中的重要信息
       if (newGameState.game) {
-        console.log('从game对象提取关键信息');
+        console.log('从game对象提取关键信息', newGameState);
     
         // 提取游戏阶段
-        if (newGameState.game.game_phase && !newGameState.gamePhase) {
+        if (newGameState.game.game_phase) {
           newGameState.gamePhase = newGameState.game.game_phase;
           console.log(`从game对象提取到游戏阶段: ${newGameState.gamePhase}`);
         }
@@ -1765,32 +1750,46 @@ const GameTable = () => {
           // 不需要单独设置到newGameState，handlePlayerTurnTime会直接从game对象读取
         }
         
-        // 提取玩家下注金额信息
-        if (newGameState.players && Array.isArray(newGameState.players)) {
-          console.log(`处理玩家下注信息，玩家数量: ${newGameState.players.length}`);
-    
-          // 更新玩家数组中的下注金额
-          if (newGameState.players && Array.isArray(newGameState.players)) {
-            // 首先确保每个玩家对象有position属性
-            newGameState.players.forEach((player, idx) => {
-              // 如果玩家没有position属性，设置为索引
-              if (player.position === undefined) {
-                player.position = idx;
-                console.log(`为玩家 ${player.name || player.username} 设置缺失的position属性: ${idx}`);
-              }
-              
-              // 确保玩家有betAmount属性，优先使用bet_amount
-              if (player.bet_amount !== undefined && player.betAmount === undefined) {
-                player.betAmount = player.bet_amount;
-                console.log(`从bet_amount同步玩家 ${player.name || player.username} 的下注额: ${player.betAmount}`);
-              } else if (player.current_bet !== undefined && player.betAmount === undefined) {
-                player.betAmount = player.current_bet;
-                console.log(`从current_bet同步玩家 ${player.name || player.username} 的下注额: ${player.betAmount}`);
-              }
-            });
-            
-            console.log('已更新玩家下注金额，确保所有下注都被显示');
+        // 提取游戏结束和摊牌信息
+        if (newGameState.game.hand_complete) {
+          newGameState.hand_complete = newGameState.game.hand_complete;
+          console.log(`游戏回合结束`);
+          
+          if (newGameState.game.hand_winners) {
+            newGameState.hand_winners = newGameState.game.hand_winners;
+            console.log(`获胜者: ${newGameState.hand_winners}`);
           }
+          
+          if (newGameState.game.showdown) {
+            newGameState.showdown = newGameState.game.showdown;
+            console.log(`是否为摊牌结束: ${newGameState.showdown}`);
+          }
+        }
+        
+        // 提取玩家下注金额信息
+        if (newGameState.game.players && Array.isArray(newGameState.game.players)) {
+          console.log(`处理玩家下注信息，玩家数量: ${newGameState.game.players.length}`);
+          console.log('newGameState.game.players', newGameState.game.players);
+    
+          // 首先确保每个玩家对象有position属性
+          newGameState.game.players.forEach((player, idx) => {
+            // 如果玩家没有position属性，设置为索引
+            if (player.position === undefined) {
+              player.position = idx;
+              console.log(`为玩家 ${player.name || player.username} 设置缺失的position属性: ${idx}`);
+            }
+            
+            // 确保玩家有betAmount属性，优先使用bet_amount
+            if (player.bet_amount !== undefined && player.betAmount === undefined) {
+              player.betAmount = player.bet_amount;
+              console.log(`从bet_amount同步玩家 ${player.name || player.username} 的下注额: ${player.betAmount}`);
+            } else if (player.current_bet !== undefined && player.betAmount === undefined) {
+              player.betAmount = player.current_bet;
+              console.log(`从current_bet同步玩家 ${player.name || player.username} 的下注额: ${player.betAmount}`);
+            }
+          });
+          
+          console.log('已更新玩家下注金额，确保所有下注都被显示');
         }
         
         // 提取公共牌
@@ -1852,8 +1851,6 @@ const GameTable = () => {
                          (newGameState.game && newGameState.game.game_phase) || 
                          (newGameState.status === "playing" ? "PRE_FLOP" : "WAITING");
       
-      console.log('oldGamePhase:', oldGamePhase);
-      
       // 检测游戏阶段变化并播放相应音效
       if (oldGamePhase !== newGamePhase) {
         console.log(`游戏阶段变化: ${oldGamePhase} -> ${newGamePhase}`);
@@ -1869,6 +1866,14 @@ const GameTable = () => {
         // 检测游戏开始状态
         if (oldGamePhase !== "PRE_FLOP" && newGamePhase === "PRE_FLOP") {
           console.log("检测到游戏开始从非PRE_FLOP变为PRE_FLOP，触发发牌动画");
+          console.group('===== 游戏阶段变化检测 =====');
+          console.log('gameState.gamePhase:', gameState.gamePhase);
+          console.log(`游戏阶段变化: ${oldGamePhase} -> ${newGamePhase}`);
+          console.log('玩家手牌:', playerHand.length + '张');
+          console.log('新的手牌:', newGameState.my_hand);
+          console.log('游戏状态:', newGameState.status);
+          console.log('newGameState:', newGameState);
+          console.groupEnd()
           
           // 使用与测试功能相同的动画处理方法
           if (!showDealingAnimation) {
@@ -1884,127 +1889,26 @@ const GameTable = () => {
         }
       }
       
-      // 如果data.game包含游戏阶段但newGameState未从上面提取，直接从data获取
-      if (data.game && data.game.game_phase && !newGameState.gamePhase) {
-        newGameState.gamePhase = data.game.game_phase;
-        console.log(`直接从data.game提取游戏阶段: ${newGameState.gamePhase}`);
-      }
-      
-      // 重要: 修复服务器可能未返回gamePhase的问题
-      // 根据其他信息推断游戏阶段
-      if (!newGameState.gamePhase && !newGameState.game_phase) {
-        console.log('警告: 服务器未返回gamePhase，尝试从其他字段推断游戏阶段');
-        
-        if (newGameState.status === 'playing') {
-          // 检查是否有特定阶段的迹象
-          if (newGameState.community_cards && newGameState.community_cards.length >= 5) {
-            newGameState.gamePhase = 'SHOWDOWN';
-            console.log('根据公共牌数量推断游戏阶段为 SHOWDOWN');
-          } else if (newGameState.community_cards && newGameState.community_cards.length >= 4) {
-            newGameState.gamePhase = 'RIVER';
-            console.log('根据公共牌数量推断游戏阶段为 RIVER');
-          } else if (newGameState.community_cards && newGameState.community_cards.length >= 3) {
-            newGameState.gamePhase = 'TURN';
-            console.log('根据公共牌数量推断游戏阶段为 TURN');
-          } else if (newGameState.community_cards && newGameState.community_cards.length > 0) {
-            newGameState.gamePhase = 'FLOP';
-            console.log('根据公共牌数量推断游戏阶段为 FLOP');
-          } else if (newGameState.game && newGameState.game.started) {
-            newGameState.gamePhase = 'PRE_FLOP';
-            console.log('根据游戏已开始状态推断游戏阶段为 PRE_FLOP');
-          } else if (newGameState.isGameStarted) {
-            newGameState.gamePhase = 'PRE_FLOP';
-            console.log('根据isGameStarted推断游戏阶段为 PRE_FLOP');
-          } else {
-            // 如果没有其他信息，默认为WAITING
-            newGameState.gamePhase = 'WAITING';
-            console.log('没有足够信息，默认游戏阶段为 WAITING');
-          }
-        } else {
-          // 如果状态不是playing，则设为WAITING
-          newGameState.gamePhase = 'WAITING';
-          console.log('游戏状态不是playing，设置阶段为 WAITING');
+      // 如果是首次收到更新，更新当前玩家
+      if (!currentPlayer && currentUser) {
+        const player = newGameState.players?.find(p => p.name === currentUser || p.username === currentUser);
+        if (player) {
+          setCurrentPlayer(player);
+          setPlayerHand(player.hand || []);
         }
       }
       
-      // 打印关键状态信息
-      console.log('处理后的游戏阶段:', newGameState.gamePhase);
-      console.log('游戏状态:', newGameState.status);
-      console.log('是否开始游戏:', newGameState.isGameStarted);
-    
-      // 检查数据是否有实质性变化
-      if (!hasSignificantChanges(gameState, newGameState)) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('游戏状态无实质性变化，跳过更新');
-        }
-      return;
-    }
-    
-      // 记录重要状态变化，帮助调试
-      const gamePhaseChanged = gameState?.gamePhase !== newGameState?.gamePhase;
-      const playersChanged = JSON.stringify(gameState?.players || []) !== JSON.stringify(newGameState?.players || []);
-      
-      if (process.env.NODE_ENV === 'development' && (gamePhaseChanged || playersChanged)) {
-        console.log('检测到重要变化:', {
-          gamePhaseChanged,
-          oldPhase: gameState?.gamePhase,
-          newPhase: newGameState?.gamePhase,
-          playersChanged,
-          oldPlayerCount: gameState?.players?.length || 0,
-          newPlayerCount: newGameState?.players?.length || 0
-        });
-      }
-    
-      // 处理安全问题：移除非当前玩家的手牌信息
-      if (newGameState.players && newGameState.players.length > 0) {
-        newGameState.players = newGameState.players.map(player => {
-          // 检查是否是当前玩家
-          const isCurrentPlayer = player.name === currentUser || player.username === currentUser;
-    
-          if (!isCurrentPlayer && player.hand) {
-            // 对非当前玩家，保留有手牌的标志但移除具体手牌数据
-            const hasHandCards = player.hand.length > 0;
-            return {
-              ...player,
-              hand: [], // 移除手牌数据
-              hasHand: hasHandCards // 添加标志表示玩家有手牌
-            };
-          }
-          return player;
-        });
-    }
-    
-    // 更新游戏状态
-      setGameState(newGameState);
-      console.log('更新newGameState', newGameState)
-      gameState.gamePhase = newGameState.game?.game_phase
-      console.log('更新newGameState gameState.gamePhase', gameState.gamePhase)
-      
-      // 只有在游戏阶段为PRE_FLOP、FLOP、TURN或RIVER且有current_player_idx时，才处理玩家思考时间
-      if (newGameState.gamePhase && 
-          ['PRE_FLOP', 'FLOP', 'TURN', 'RIVER'].includes(newGameState.gamePhase) && 
-          (newGameState.current_player_idx !== undefined || newGameState.game?.current_player_idx !== undefined)) {
-        console.log(`处理思考时间：游戏阶段=${newGameState.gamePhase}，当前玩家=${newGameState.current_player_idx || newGameState.game?.current_player_idx}`);
-        handlePlayerTurnTime(newGameState);
-      } else {
-        console.log(`跳过思考时间处理：游戏阶段=${newGameState.gamePhase || '未知'}`);
-        // 清除已有计时器
-        if (playerTurnTimerRef.current) {
-          console.log('清除已有计时器（不活跃阶段）');
-          clearInterval(playerTurnTimerRef.current);
-          playerTurnTimerRef.current = null;
-        }
-      }
+      // 处理计时器更新
+      handlePlayerTurnTime(newGameState);
       
       // 处理玩家手牌 - 从my_hand字段获取
       if (newGameState.my_hand && Array.isArray(newGameState.my_hand)) {
         console.log('接收到玩家手牌:', newGameState.my_hand);
         
-        // 检查是否是弃牌后的更新 - 更强健的检测
+        // 检查是否是弃牌后的更新
         const isAfterDiscard = (playerHand.length === 3 && newGameState.my_hand.length === 2) || 
                                (discardedCard && playerHand.length > newGameState.my_hand.length);
         
-        // 移除延迟，立即处理手牌更新
         // 如果是弃牌后的更新，保留弃掉的牌信息
         if (isAfterDiscard && discardedCard) {
           console.log('弃牌后更新手牌，保留弃掉的牌信息:', discardedCard);
@@ -2023,74 +1927,17 @@ const GameTable = () => {
         } else {
           // 常规更新，直接设置手牌
           setPlayerHand(newGameState.my_hand);
+          
           // 如果手牌数量变化且没有弃掉的牌，重置弃掉的牌状态
           if (playerHand.length !== newGameState.my_hand.length) {
             setDiscardedCard(null);
           }
         }
-        console.log('立即显示手牌');
-      }
-
-      // 检查弃牌状态更新
-      if (newGameState.game && newGameState.game.players && Array.isArray(newGameState.game.players)) {
-        // 找到当前玩家
-        const currentPlayerData = newGameState.game.players.find(p => 
-          p.name === currentUser || p.username === currentUser
-        );
-        
-        console.log('检测到玩家 currentPlayerData:', currentPlayerData);
-        if (currentPlayerData) {
-          // 检查玩家是否有has_discarded标记
-          if (currentPlayerData.has_discarded === true) {
-            console.log('检测到玩家已弃牌状态更新');
-            
-            // 如果还没有设置弃掉的牌，尝试从玩家数据中获取
-            if (!discardedCard && currentPlayerData.discarded_card) {
-              console.log('从服务器获取弃掉的牌:', currentPlayerData.discarded_card);
-              setDiscardedCard(currentPlayerData.discarded_card);
-              // 播放弃牌音效
-              dealingAnimationUtils.playFoldSound();
-            } 
-          } else if (currentPlayerData.has_discarded === false) {
-            // 如果服务器明确指出未弃牌，确保重置弃牌状态
-            if (discardedCard) {
-              console.log('服务器表明玩家未弃牌，重置弃牌状态');
-              setDiscardedCard(null);
-            }
-          }
-        }
-      }
-    
-      // 检测摊牌阶段并打开摊牌对话框
-      if (newGameState.gamePhase === 'SHOWDOWN') {
-        console.log('检测到摊牌阶段');
-        // 准备摊牌数据
-        const showdownData = {
-          players: newGameState.players || [],
-          communityCards: newGameState.community_cards || [],
-          winners: newGameState.winners || newGameState.hand_winners?.map(idx => newGameState.players[idx]) || [],
-          pot: { 
-            main: newGameState.pot || 0, 
-            sidePots: newGameState.side_pots || []
-          }
-        };
-        
-        // 在摊牌阶段显示所有玩家的手牌
-        setShowCards(true);
-        
-        // 打开摊牌对话框
-        setShowdownInfo(showdownData);
-        setTimeout(() => {
-          setOpenShowdownDialog(true);
-        }, 1000); // 稍微延迟打开对话框，让玩家有时间看到桌面上的手牌
-    } else {
-        // 非摊牌阶段不显示其他玩家的手牌
-        setShowCards(false);
       }
       
       // 检查是否当前玩家回合
       if (newGameState.current_player_idx !== undefined) {
-        const currentPlayerIdx = newGameState.players?.findIndex(
+        const currentPlayerIdx = newGameState.game?.players?.findIndex(
           p => p.name === currentUser || p.username === currentUser
         );
         
@@ -2098,6 +1945,41 @@ const GameTable = () => {
         console.log(`当前玩家回合状态: ${isUserTurnNow}, index: ${currentPlayerIdx}, current: ${newGameState.current_player_idx}`);
         setIsUserTurn(isUserTurnNow);
       }
+      
+      // 处理游戏结束和摊牌
+      if (newGameState.hand_complete) {
+        console.log("检测到游戏回合结束，准备显示摊牌对话框");
+        
+        // 准备摊牌数据
+        const showdownData = {
+          players: newGameState.players
+            .filter(player => player.is_active || (player.hand && player.hand.length > 0))
+            .map(player => ({
+              name: player.name,
+              hand: player.hand,
+              isWinner: player.is_winner || (newGameState.hand_winners && newGameState.hand_winners.includes(player.position)),
+              chipsWon: player.is_winner ? newGameState.pot / (newGameState.hand_winners?.length || 1) : 0
+            })),
+          communityCards: newGameState.community_cards,
+          winners: newGameState.players
+            .filter(player => player.is_winner || (newGameState.hand_winners && newGameState.hand_winners.includes(player.position)))
+            .map(player => ({
+              name: player.name,
+              position: player.position
+            })),
+          pot: { main: newGameState.pot }
+        };
+        
+        // 播放赢牌音效
+        soundEffects.playWinSound();
+        
+        // 显示摊牌对话框
+        setShowdownInfo(showdownData);
+        setOpenShowdownDialog(true);
+      }
+      
+      // 更新状态
+      setGameState(newGameState);
     } catch (error) {
       console.error('处理游戏状态更新时出错:', error);
     }
@@ -2242,12 +2124,6 @@ const GameTable = () => {
       });
     }
   };
-  
-  // 打印初始游戏阶段
-  useEffect(() => {
-    console.log('GameTable - Initial gamePhase:', gameState.gamePhase);
-    console.log('GameTable - Initial status:', gameState.status);
-  }, []);
   
   
   // 添加格式化时间的函数
@@ -2501,7 +2377,7 @@ const GameTable = () => {
       const hasPosition = player.position !== undefined && player.position >= 0;
       const isSitting = hasPosition;
       // 游戏中的状态基于房间游戏状态和玩家是否入座
-      const isPlaying = isSitting && (gameState.gamePhase === "playing" || 
+      const isPlaying = isSitting && ( 
                                     gameState.status === "playing" || 
                                     gameState.game?.state === "playing");
       
@@ -2631,6 +2507,73 @@ const GameTable = () => {
   };
   
   const [testDealingMode, setTestDealingMode] = useState(false);
+  
+  // 在 GameTable.jsx 中添加一个函数来打印详细的玩家状态信息
+  const logPlayerActionsState = () => {
+    // 使用与传递给 PlayerActions 完全相同的方式获取当前玩家
+    const currentPlayerIndex = gameState.current_player_idx || gameState.game?.current_player_idx;
+    const currentPlayer = getCurrentPlayerByIndex(currentPlayerIndex);
+    const userPlayer = getUserPlayer();
+    const isUserTurn = isCurrentUserTurn();
+    
+    console.group('PlayerActions 详细状态:');
+    console.log('当前游戏状态:', {
+      currentPlayerIndex,
+      'userPlayer?.position': userPlayer?.position,
+      isUserTurn,
+      'players数组长度': gameState.game?.players?.length,
+      '当前最高下注': gameState.currentBet || gameState.game?.current_bet,
+    });
+    
+    if (currentPlayer) {
+      console.log('当前轮到的玩家:', currentPlayer.name || currentPlayer.username);
+      console.log('当前轮到的玩家position:', currentPlayer.position);
+      console.log('当前轮到的玩家的bet_amount:', currentPlayer.bet_amount);
+      console.log('当前轮到的玩家的betAmount:', currentPlayer.betAmount);
+    } else {
+      console.log('当前轮到的玩家: 未找到匹配position:', currentPlayerIndex);
+      console.log('所有玩家positions:', gameState.game?.players?.map(p => p.position));
+    }
+    
+    if (userPlayer) {
+      console.log('当前用户的玩家:', userPlayer.name || userPlayer.username);
+      console.log('当前用户的玩家position:', userPlayer.position);
+      console.log('当前用户的玩家bet_amount:', userPlayer.bet_amount);
+      console.log('当前用户的玩家betAmount:', userPlayer.betAmount);
+      console.log('当前用户是否该行动:', isUserTurn);
+      console.log('实际应该跟注金额:', Math.max(0, (gameState.currentBet || gameState.game?.current_bet || 0) - (userPlayer.betAmount || userPlayer.bet_amount || 0)));
+    }
+    
+    console.log('当前最高下注:', gameState.currentBet || gameState.game?.current_bet);
+    console.log('实际传递给PlayerActions的playerBetAmount:', userPlayer?.betAmount || userPlayer?.bet_amount || 0);
+    console.groupEnd();
+  };
+
+  // 在状态更新后调用此函数
+  useEffect(() => {
+    if (gameState && gameState.game && gameState.game.players) {
+      logPlayerActionsState();
+    }
+  }, [gameState, currentUser]);
+  
+  // 添加统一的获取玩家的辅助函数
+  const getCurrentPlayerByIndex = (index) => {
+    if (index === undefined) return null;
+    return gameState.game?.players?.find(p => p.position === index);
+  };
+  
+  const getUserPlayer = () => {
+    return gameState.game?.players?.find(p => 
+      p.username === currentUser || p.name === currentUser
+    );
+  };
+  
+  // 判断是否是用户的回合
+  const isCurrentUserTurn = () => {
+    const currentPlayerIdx = gameState.current_player_idx || gameState.game?.current_player_idx;
+    const userPlayer = getUserPlayer();
+    return userPlayer && currentPlayerIdx !== undefined && userPlayer.position === currentPlayerIdx;
+  };
   
         return (
     <GameTableContainer>
@@ -2945,17 +2888,17 @@ const GameTable = () => {
               boxShadow: '0 4px 8px rgba(0, 0, 0, 0.5)'
           }}>
             <PlayerActions
-              isUserTurn={true}
-              playerChips={currentPlayer?.chips || 0}
-              minBet={gameState.minBet || gameState.game?.current_bet || 0}
+              isUserTurn={isCurrentUserTurn()}
+              playerChips={getUserPlayer()?.chips || 0}
+              minBet={gameState.blinds?.big || gameState.game?.blinds?.big || 1}
               currentBet={gameState.currentBet || gameState.game?.current_bet || 0}
               pot={gameState.pot || gameState.game?.pot || 0}
               canCheck={(gameState.currentBet === 0 || gameState.game?.current_bet === 0 || 
-                (currentPlayer?.bet_amount && currentPlayer.bet_amount >= (gameState.currentBet || gameState.game?.current_bet || 0)))}
+                (getUserPlayer()?.bet_amount && getUserPlayer().bet_amount >= (gameState.currentBet || gameState.game?.current_bet || 0)))}
               canRaise={true}
               canCall={true}
               loading={loading}
-              playerBetAmount={currentPlayer?.bet_amount || 0}
+              playerBetAmount={getUserPlayer()?.betAmount || getUserPlayer()?.bet_amount || 0}
               onCheck={() => handleAction('check')}
               onCall={() => handleAction('call')}
               onRaise={(amount) => {
@@ -2963,7 +2906,7 @@ const GameTable = () => {
                 handleAction('raise', amount);
               }}
               onFold={() => handleAction('fold')}
-              onAllIn={() => handleAction('raise', currentPlayer?.chips || 0)}
+              onAllIn={() => handleAction('raise', getUserPlayer()?.chips || 0)}
             />
                                 </Box>
           );

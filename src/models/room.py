@@ -473,30 +473,25 @@ class Room:
             # 检查玩家是否在房间中
             if username not in self.players:
                 return {"success": False, "message": "玩家不在房间中"}
-            
+                
+            # 获取玩家对象
             player = self.players[username]
             
-            # 检查玩家是否有座位 - 检查seat或position属性
-            has_seat = hasattr(player, 'seat') and player.seat is not None
-            has_position = hasattr(player, 'position') and player.position is not None
-            
-            if not (has_seat or has_position):
+            # 检查玩家是否有座位
+            if not hasattr(player, 'seat') or player.seat is None:
                 return {"success": False, "message": "玩家未入座"}
+                
+            # 记录当前座位号
+            current_seat = player.seat
             
-            # 记录当前座位以供返回
-            previous_seat = player.seat if has_seat else None
-            previous_position = player.position if has_position else None
-            
-            # 使用任一有效座位
-            current_seat = previous_seat if previous_seat is not None else previous_position
-            
-            # 如果游戏正在进行中且玩家是活跃玩家，需要先让玩家弃牌
+            # 如果游戏正在进行，需要先让玩家离开游戏
             if self.game and self.status == "playing":
                 # 找到玩家在游戏中的索引
                 player_idx = None
-                for idx, game_player in enumerate(self.game.players):
-                    if game_player['name'] == username:
-                        player_idx = idx
+                # 检查玩家是否在游戏中 - 游戏中players是一个字典，键为位置，值为玩家信息
+                for position, game_player in self.game.players.items():
+                    if game_player.get('name') == username:
+                        player_idx = position
                         break
                 
                 # 如果玩家正在游戏中且是活跃玩家，则需要先弃牌
@@ -623,7 +618,18 @@ class Room:
                     
                     # 获取玩家名称
                     if 0 <= player_idx < len(self.game.players):
-                        player_name = self.game.players[player_idx].get('name', f"玩家{player_idx}")
+                        try:
+                            player_obj = self.game.players[player_idx]
+                            # 尝试多种可能的方式获取玩家名称
+                            if isinstance(player_obj, dict):
+                                player_name = player_obj.get('name', f"玩家{player_idx}")
+                            elif hasattr(player_obj, 'name'):
+                                player_name = player_obj.name
+                            else:
+                                player_name = f"玩家{player_idx}"
+                        except Exception as e:
+                            print(f"获取玩家名称出错: {e}")
+                            player_name = f"玩家{player_idx}"
                     
                     # 构建动作描述
                     if action == 'fold':
@@ -671,6 +677,7 @@ class Room:
                 "status": self.status,
                 "game_duration_hours": self.game_duration_hours,
                 "owner": self.owner,
+                "gamePhase": self.game.get_game_phase() if self.game else None  #需保留用于开始游戏时room_update更新gamePhase
             }
             
             # 计算并添加剩余时间

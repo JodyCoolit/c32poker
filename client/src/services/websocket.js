@@ -89,9 +89,9 @@ class WebSocketService {
             criticalFields.playersHash = gameState.game.players.map(p => ({
                 id: p.id || p.username || '',
                 position: p.position || -1,
-                chips: p.chips || 0,
-                bet: p.bet || p.current_bet || 0,
-                status: p.status || '',
+                chips: p.chips,
+                bet: p.bet_amount,
+                status: p.status,
                 isPlaying: !!p.isPlaying,
                 // 添加弃牌信息到状态哈希计算
                 has_discarded: !!p.has_discarded,

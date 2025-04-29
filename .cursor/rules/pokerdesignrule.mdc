@@ -26,6 +26,8 @@ main.py：提供 WebSocket 端点，处理实时游戏信息交换
 一定要注意py的indentation error
 不要过度防御性编程
 
+在打印DEBUG LOG是使用console.group以及console.groupEnd进行分组打印，这样方便在console使用关键字过滤出来关注的重点。
+
 主要注意的是客户端永远不会主动查询状态!
 进入房间后全部依靠websocket通信，client发送行动，server接受后然后广播给全部玩家。
 debug的时候永远先检查服务器接口，然后检查客户端是否正确收到消息，然后检查客户端是否正确渲染。

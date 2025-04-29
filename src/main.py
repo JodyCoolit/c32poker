@@ -357,6 +357,9 @@ async def game_websocket_endpoint(
                             # Get updated game state
                             updated_state = room.get_state()
                             
+                            # 添加调试日志，特别关注弃牌操作
+                            print(f"[BROADCAST][game_update]: Action={action}, Player={username}, GameState={updated_state}")
+                            
                             # Broadcast game update to all players in the room
                             await ws_manager.broadcast_to_room(
                                 room_id,
@@ -367,7 +370,10 @@ async def game_websocket_endpoint(
                                         "player": username,
                                         "amount": amount,
                                         "result": result,
-                                        "game_state": updated_state
+                                        "game_state": updated_state,
+                                        "is_key_update": True,
+                                        "timestamp": time.time(),
+                                        "update_reason": f"player_action_{action}"
                                     }
                                 }
                             )
@@ -513,18 +519,8 @@ async def game_websocket_endpoint(
                             # Get updated room state
                             updated_state = room.get_state()
                             
-                            # 详细记录房间状态变化
-                            print(f"======= room_update 房间状态变化 =======")
-                            print(f"房间ID: {target_room_id}")
-                            print(f"操作类型: {action}")
-                            print(f"操作玩家: {username}")
-                            print(f"操作结果: {result}")
-                            print(f"玩家列表: {[p.get('username', p.get('name', 'Unknown')) for p in updated_state.get('players', [])]}")
-                            print(f"玩家位置详情: {[(p.get('username', p.get('name', 'Unknown')), p.get('position')) for p in updated_state.get('players', [])]}")
-                            print(f"最大玩家数: {updated_state.get('max_players')}")
-                            print(f"游戏阶段: {updated_state.get('status')}")
-                            print(f"============================")
-
+                            print(f"[BROADCAST][room_update] Room {target_room_id}: Action={action}, Player={username}, Result={result.get('success')}")
+                            
                             # Send a room update notification with detailed information
                             await ws_manager.broadcast_to_room(
                                 target_room_id,

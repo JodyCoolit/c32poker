@@ -346,28 +346,6 @@ const PokerTable = ({
           )}
         </Box>
         
-        {/* 添加PlayerActions - 只在游戏进行中显示 */}
-        {isGameStarted && userPlayer && isUserTurn && (
-          <PlayerActionsContainer>
-            <PlayerActions
-              isUserTurn={isUserTurn}
-              playerChips={userPlayer.chips || 0}
-              minBet={blinds.big}
-              currentBet={currentBet}
-              pot={pot}
-              canCheck={canCheck}
-              canRaise={canRaise}
-              canCall={canCall}
-              loading={loading}
-              onCheck={handleCheck}
-              onCall={handleCall}
-              onRaise={handleRaise}
-              onFold={handleFold}
-              onAllIn={handleAllIn}
-            />
-          </PlayerActionsContainer>
-        )}
-        
       </TableSurface>
     </TableContainer>
   );

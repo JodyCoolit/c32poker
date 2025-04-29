@@ -213,6 +213,18 @@ const PlayerActions = ({
   // Calculate call amount - how much more the player needs to add to match the current bet
   const callAmount = Math.max(0, currentBet - playerBetAmount);
   
+  // Debug log
+  useEffect(() => {
+    console.log('PlayerActions 状态:', {
+      currentBet,
+      playerBetAmount,
+      callAmount,
+      minBet,
+      canCheck,
+      minBetValue
+    });
+  }, [currentBet, playerBetAmount, callAmount, minBet, canCheck, minBetValue]);
+  
   // Update bet amount when minimum bet changes
   useEffect(() => {
     const newAmount = Math.min(Math.max(currentBet * 2, minBet), playerChips);
@@ -234,9 +246,10 @@ const PlayerActions = ({
     // If there's a current bet that the player needs to call first
     const needToCallAmount = Math.max(0, currentBet - playerBetAmount);
     const effectivePot = needToCallAmount > 0 ? pot + needToCallAmount : pot;
-    console.log('xxx currentBet', currentBet)
-    console.log('xxx needToCallAmount', needToCallAmount);
-    console.log('xxx effectivePot', effectivePot);
+    console.log('当前下注:', currentBet)
+    console.log('玩家已下注:', playerBetAmount);
+    console.log('需要跟注金额:', needToCallAmount);
+    console.log('有效底池:', effectivePot);
     
     switch(percentage) {
       case 33:
@@ -324,7 +337,7 @@ const PlayerActions = ({
     }
   };
 
-  // 处理让牌和跟注
+  // Handle check or call
   const handleCheckOrCall = () => {
     if (canCheck) {
       // 播放让牌音效

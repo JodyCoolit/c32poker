@@ -721,12 +721,23 @@ class Game:
                 if player.get("discarded_card"):
                     player_state["discarded_card"] = player.get("discarded_card")
                 
-                # 仅在showdown时添加手牌信息
-                if self.betting_round >= 4 or self.hand_complete:
-                    if player.get("hand"):
+                # 在游戏结束时 (hand_complete) 或者摊牌阶段 (betting_round >= 4) 显示所有活跃玩家的牌
+                if self.hand_complete or self.betting_round >= 4:
+                    if player.get("hand") and position in self.active_players:
                         player_state["hand"] = player.get("hand", [])
+                        # 如果有赢家，添加牌型信息
+                        if hasattr(self, 'hand_winners') and position in self.hand_winners:
+                            # 在这里可以添加牌型信息，比如"两对"，"同花顺"等
+                            # 为了简单起见，这里不实现详细牌型，但可以标记为赢家
+                            player_state["is_winner"] = True
                 
                 state["players"].append(player_state)
+            
+            # 如果游戏已结束，添加游戏结束相关信息
+            if self.hand_complete:
+                state["hand_complete"] = True
+                state["hand_winners"] = self.hand_winners
+                state["showdown"] = len(self.active_players) > 1  # 如果多于一个玩家到达摊牌阶段，则为摊牌
             
             return state
             
@@ -937,7 +948,8 @@ class Game:
                 print(f"Community cards at showdown (total: {len(self.community_cards)}): {self.community_cards}")
             
             # Evaluate each active player's hand
-            best_hand_value = -1
+            best_player_idx = None
+            best_hand_result = None
             
             for player_idx in self.active_players:
                 player = self.players[player_idx]
@@ -946,19 +958,33 @@ class Game:
                 
                 # Evaluate the hand
                 hand_result = self.hand_evaluator.evaluate_hand(cards, self.community_cards)
-                hand_value = hand_result[1]
                 
-                if hand_value > best_hand_value:
-                    # New best hand
-                    best_hand_value = hand_value
+                # First player sets the initial best hand
+                if best_player_idx is None:
+                    best_player_idx = player_idx
+                    best_hand_result = hand_result
                     winners = [player_idx]
                     winning_hands = [hand_result[0]]
-                    winning_hand_descriptions = [hand_result[2]]
-                elif hand_value == best_hand_value:
-                    # Tie - add this player as another winner
-                    winners.append(player_idx)
-                    winning_hands.append(hand_result[0])
-                    winning_hand_descriptions.append(hand_result[2])
+                    winning_hand_descriptions = [hand_result[3]]
+                else:
+                    # Compare with current best hand
+                    # Extract cards for comparison
+                    current_cards = player["hand"]
+                    best_cards = self.players[best_player_idx]["hand"]
+                    
+                    # Use compare_hands to determine which hand is better
+                    comparison = self.hand_evaluator.compare_hands(current_cards, best_cards, self.community_cards)
+                    
+                    if comparison > 0:  # Current hand is better
+                        best_player_idx = player_idx
+                        best_hand_result = hand_result
+                        winners = [player_idx]
+                        winning_hands = [hand_result[0]]
+                        winning_hand_descriptions = [hand_result[3]]
+                    elif comparison == 0:  # Tie
+                        winners.append(player_idx)
+                        winning_hands.append(hand_result[0])
+                        winning_hand_descriptions.append(hand_result[3])
             
             # Calculate the chips each winner receives
             winning_amount = self.pot // len(winners)
@@ -1306,12 +1332,16 @@ async def timer_update_task():
                         # 获取完整的游戏状态
                         game_state = room.get_state()
                         
-                        print(f"[BROADCAST] Room {room_id}: Sending update. Reason: {change_reason}")
+                        print(f"[BROADCAST][game_update] Room {room_id}: Sending update. Reason: {change_reason}")
                         
                         # 发送游戏状态更新
                         await ws_manager.broadcast_to_room(room_id, {
                             "type": "game_update",
                             "data": {
+                                "action": "timer_update",
+                                "player": "system",
+                                "amount": 0,
+                                "result": {"success": True, "message": "Timer update"},
                                 "game_state": game_state,
                                 "is_key_update": state_changed,
                                 "timestamp": current_time,
