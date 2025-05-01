@@ -485,12 +485,44 @@ async def game_websocket_endpoint(
                         
                         elif action == "get_game_history":
                             # Get game history from the room
-                            history = room.get_game_history()
-                            result = {
-                                "success": True,
-                                "message": "Game history retrieved",
-                                "history": history
-                            }
+                            try:
+                                # 检查游戏是否已开始
+                                if room.game:
+                                    history = room.game.get_game_history()
+                                else:
+                                    # 如果游戏尚未开始，返回空历史记录
+                                    history = []
+                                
+                                result = {
+                                    "success": True,
+                                    "message": "Game history retrieved",
+                                    "history": history  # 现在history是一个包含更多详细信息的对象
+                                }
+                                
+                                # 直接发送给请求的玩家
+                                await websocket.send_json({
+                                    "type": "game_history",
+                                    "data": history  # 直接发送历史数据对象
+                                })
+                                
+                                # 立即返回，避免后续的广播处理
+                                continue
+                            except Exception as e:
+                                import traceback
+                                traceback.print_exc()
+                                result = {
+                                    "success": False,
+                                    "message": f"Error retrieving game history: {str(e)}"
+                                }
+                                # 发送错误消息
+                                await websocket.send_json({
+                                    "type": "error",
+                                    "data": {
+                                        "message": result["message"],
+                                        "timestamp": time.time()
+                                    }
+                                })
+                                continue
                         
                         elif action == "exit_game":
                             # Call the room's leave method
@@ -539,15 +571,6 @@ async def game_websocket_endpoint(
                                 }
                             )
                             
-                            # For game history, send only to the requesting player
-                            if action == "get_game_history":
-                                await websocket.send_json({
-                                    "type": "game_history",
-                                    "data": {
-                                        "history": result.get("history", []),
-                                        "timestamp": time.time()
-                                    }
-                                })
                         else:
                             # Send error to the player who made the invalid action
                             await websocket.send_json({

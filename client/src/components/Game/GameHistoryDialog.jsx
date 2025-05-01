@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogTitle, 
@@ -52,6 +52,36 @@ const GameHistoryDialog = ({
   
   // 控制每个历史记录的展开/折叠状态
   const [expanded, setExpanded] = useState({});
+  
+  // 处理历史数据
+  const [processedHistory, setProcessedHistory] = useState([]);
+
+  // 当history变化时处理数据
+  useEffect(() => {
+    console.group('GameHistoryDialog 接收到历史数据');
+    console.log('历史数据:', history);
+    
+    // 确保历史数据是数组
+    if (Array.isArray(history)) {
+      setProcessedHistory(history);
+      console.log('历史数据是数组，数量:', history.length);
+    } else if (history && typeof history === 'object') {
+      // 如果是对象，尝试从history字段获取数据
+      if (Array.isArray(history.history)) {
+        setProcessedHistory(history.history);
+        console.log('从history对象中获取history字段，数量:', history.history.length);
+      } else {
+        // 如果不是数组，尝试将对象转换为数组
+        const historyArray = [history];
+        setProcessedHistory(historyArray);
+        console.log('将单个历史对象转换为数组');
+      }
+    } else {
+      setProcessedHistory([]);
+      console.log('历史数据格式不正确，设置为空数组');
+    }
+    console.groupEnd();
+  }, [history]);
   
   // 处理Tab变化
   const handleTabChange = (event, newValue) => {
@@ -117,7 +147,46 @@ const GameHistoryDialog = ({
   };
   
   // 获取当前选中的历史记录
-  const selectedHistory = history.length > tabValue ? history[tabValue] : null;
+  const selectedHistory = processedHistory && processedHistory.length > tabValue ? processedHistory[tabValue] : null;
+
+  // 处理历史记录中的动作数据，按轮次分组
+  const processActionsData = (actions) => {
+    if (!actions || !Array.isArray(actions)) return [];
+    
+    // 根据动作轮次分组处理
+    const rounds = {};
+    
+    actions.forEach(action => {
+      const round = action.round || 'PRE_FLOP';
+      if (!rounds[round]) {
+        rounds[round] = {
+          round: getRoundDisplayName(round),
+          actions: []
+        };
+      }
+      
+      rounds[round].actions.push({
+        player: action.player_name || action.player || 'Unknown',
+        action: action.action,
+        amount: action.amount
+      });
+    });
+    
+    return Object.values(rounds);
+  };
+  
+  // 获取轮次的显示名称
+  const getRoundDisplayName = (round) => {
+    const roundMap = {
+      'PRE_FLOP': '前翻牌圈',
+      'FLOP': '翻牌圈',
+      'TURN': '转牌圈',
+      'RIVER': '河牌圈',
+      'SHOWDOWN': '摊牌'
+    };
+    
+    return roundMap[round] || round;
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -138,14 +207,14 @@ const GameHistoryDialog = ({
         )}
         
         {/* 无历史记录提示 */}
-        {!loading && !error && (!history || history.length === 0) && (
+        {!loading && !error && (!processedHistory || processedHistory.length === 0) && (
           <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', my: 3 }}>
             暂无历史记录
           </Typography>
         )}
         
         {/* 历史记录内容 */}
-        {!loading && !error && history && history.length > 0 && (
+        {!loading && !error && processedHistory && processedHistory.length > 0 && (
           <>
             {/* 局数Tab */}
             <Tabs 
@@ -155,7 +224,7 @@ const GameHistoryDialog = ({
               scrollButtons="auto"
               sx={{ mb: 2 }}
             >
-              {history.map((hand, index) => (
+              {processedHistory.map((hand, index) => (
                 <Tab key={index} label={`局 ${index + 1}`} />
               ))}
             </Tabs>
@@ -171,7 +240,7 @@ const GameHistoryDialog = ({
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2" color="text.secondary">
-                        时间: {formatDate(selectedHistory.timestamp)}
+                        时间: {formatDate(selectedHistory.start_time)}
                       </Typography>
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -179,6 +248,13 @@ const GameHistoryDialog = ({
                         底池: {selectedHistory.pot} BB
                       </Typography>
                     </Grid>
+                    {selectedHistory.game_id && (
+                      <Grid item xs={12}>
+                        <Typography variant="body2" color="text.secondary">
+                          游戏ID: {selectedHistory.game_id}
+                        </Typography>
+                      </Grid>
+                    )}
                   </Grid>
                 </Paper>
                 
@@ -194,7 +270,26 @@ const GameHistoryDialog = ({
                         <ListItem key={index}>
                           <ListItemText 
                             primary={winner.name} 
-                            secondary={`获得 ${winner.amount} BB`} 
+                            secondary={`获得 ${winner.amount || winner.chips || 0} BB`} 
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  </Paper>
+                )}
+                
+                {/* 玩家信息 */}
+                {selectedHistory.players && selectedHistory.players.length > 0 && (
+                  <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      参与玩家
+                    </Typography>
+                    <List dense>
+                      {selectedHistory.players.map((player, index) => (
+                        <ListItem key={index}>
+                          <ListItemText 
+                            primary={player.name} 
+                            secondary={`位置: ${player.position}, 初始筹码: ${player.chips_start || player.initial_chips || 0} BB, 结束筹码: ${player.chips_end || player.chips || 0} BB`} 
                           />
                         </ListItem>
                       ))}
@@ -207,7 +302,7 @@ const GameHistoryDialog = ({
                   玩家动作
                 </Typography>
                 <List>
-                  {selectedHistory.actions && selectedHistory.actions.map((actionGroup, index) => {
+                  {processActionsData(selectedHistory.actions).map((actionGroup, index) => {
                     const roundName = actionGroup.round || `第${index + 1}轮`;
                     const isExpanded = expanded[`${tabValue}-${index}`] || false;
                     

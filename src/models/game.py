@@ -47,6 +47,8 @@ class Game:
                 # 初始化玩家弃牌状态
                 self.players[position]["has_discarded"] = False
                 self.players[position]["discarded_card"] = None
+                # 记录玩家初始筹码数
+                self.players[position]["initial_chips"] = player_info["chips"]
             
             # 按照位置从小到大排序active_players
             self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0])
@@ -64,6 +66,7 @@ class Game:
             # 初始化评估器和历史记录
             self.hand_evaluator = HandEvaluator()
             self.action_history = []
+            self.game_history = []  # 存储已完成的游戏历史记录
             
             # 初始化计时器相关字段
             self.turn_timer = None
@@ -967,6 +970,9 @@ class Game:
                 
                 print(f"Player {self.players[winner_idx]['name']} wins {self.pot} chips (all others folded)")
                 
+                # 保存游戏历史记录
+                self.save_game_history()
+                
                 # Schedule the next hand
                 self.schedule_next_hand()
                 return
@@ -1056,6 +1062,9 @@ class Game:
             
             # Update hand_winners for game state tracking
             self.hand_winners = winners
+            
+            # 保存游戏历史记录
+            self.save_game_history()
             
             self.schedule_next_hand()
             
@@ -1293,6 +1302,101 @@ class Game:
             import traceback
             traceback.print_exc()
             return {"success": False, "message": f"处理弃牌操作时发生错误: {str(e)}"}
+
+    def save_game_history(self):
+        """将当前游戏的action_history保存到game_history中
+        
+        在一局游戏结束时调用此方法，将当前游戏的历史记录添加到历史记录列表中
+        """
+        try:
+            if not self.action_history:
+                print("没有行动历史记录可保存")
+                return False
+                
+            # 创建一个包含游戏关键信息的游戏记录
+            game_record = {
+                "game_id": self.handid,  # 使用游戏的handid作为唯一标识
+                "start_time": None,  # 将通过寻找最早的动作时间设置
+                "end_time": time.time(),  # 当前时间作为结束时间
+                "actions": [],  # 将包含所有动作的副本
+                "players": [],  # 参与游戏的玩家信息
+                "winners": [],  # 赢家信息
+                "pot": self.pot,  # 底池大小
+                "community_cards": self.community_cards,  # 公共牌
+                "small_blind": self.small_blind,
+                "big_blind": self.big_blind
+            }
+            
+            # 添加玩家信息
+            for position, player in self.players.items():
+                if isinstance(player, dict):
+                    player_record = {
+                        "name": player.get("name", ""),
+                        "position": position,
+                        "chips_start": player.get("initial_chips", 0),
+                        "chips_end": player.get("chips", 0)
+                    }
+                    game_record["players"].append(player_record)
+            
+            # 添加赢家信息
+            if hasattr(self, 'hand_winners') and self.hand_winners:
+                for winner_idx in self.hand_winners:
+                    winner_info = self.players.get(winner_idx, {})
+                    winner_name = ""
+                    if isinstance(winner_info, dict):
+                        winner_name = winner_info.get("name", f"玩家{winner_idx}")
+                    
+                    game_record["winners"].append({
+                        "name": winner_name,
+                        "position": winner_idx
+                    })
+            
+            # 复制并处理行动历史记录
+            for entry in self.action_history:
+                # 复制条目，避免修改原始数据
+                formatted_entry = entry.copy()
+                
+                # 寻找最早的时间戳作为游戏开始时间
+                if 'timestamp' in entry and (game_record["start_time"] is None or entry['timestamp'] < game_record["start_time"]):
+                    game_record["start_time"] = entry['timestamp']
+                
+                # 添加玩家名称
+                if 'player_idx' in entry:
+                    player_idx = entry['player_idx']
+                    player_info = self.players.get(player_idx, {})
+                    if isinstance(player_info, dict):
+                        formatted_entry['player_name'] = player_info.get('name', f"玩家{player_idx}")
+                    else:
+                        formatted_entry['player_name'] = f"玩家{player_idx}"
+                
+                game_record["actions"].append(formatted_entry)
+            
+            # 将游戏记录添加到历史列表中
+            self.game_history.append(game_record)
+            
+            print(f"已保存游戏历史记录，总共有 {len(self.game_history)} 局游戏历史")
+            return True
+        except Exception as e:
+            import traceback
+            print(f"保存游戏历史记录时出错: {str(e)}")
+            traceback.print_exc()
+            return False
+
+    def get_game_history(self):
+        """获取游戏历史记录
+        
+        Returns:
+            dict: 包含当前游戏和历史游戏的历史记录
+        """
+        try:
+            print(f"获取游戏历史记录，包含当前游戏和 {len(self.game_history)} 局历史游戏")
+            
+            return self.game_history
+        except Exception as e:
+            import traceback
+            print(f"获取游戏历史记录错误: {str(e)}")
+            traceback.print_exc()
+            return []
 
 async def timer_update_task():
     # 在函数内部导入以避免循环导入

@@ -1298,26 +1298,26 @@ const GameTable = () => {
       // 注册WebSocket事件监听器来处理历史记录响应
       const handleHistoryResponse = (data) => {
         console.log('收到游戏历史记录:', data);
-        if (data && Array.isArray(data.history)) {
-          setHistoryData(data.history);
+        if (data && Array.isArray(data)) {
+          setHistoryData(data);
         } else {
           setHistoryData([]);
         }
         setHistoryLoading(false);
         
         // 移除事件监听器
-        websocketService.removeEventListener('gameHistory', handleHistoryResponse);
+        websocketService.removeEventListener('game_history', handleHistoryResponse);
       };
       
       // 添加事件监听器
-      websocketService.addEventListener('gameHistory', handleHistoryResponse);
+      websocketService.addEventListener('game_history', handleHistoryResponse);
       
       // 设置超时处理
       setTimeout(() => {
         if (historyLoading) {
           setHistoryLoading(false);
           setHistoryError('获取历史记录超时，请重试');
-          websocketService.removeEventListener('gameHistory', handleHistoryResponse);
+          websocketService.removeEventListener('game_history', handleHistoryResponse);
         }
       }, 5000);
       
@@ -2828,7 +2828,10 @@ const GameTable = () => {
             variant="outlined"
             color="primary"
             size="small"
-            onClick={() => setOpenHistoryDialog(true)}
+            onClick={() => {
+              fetchGameHistory();
+              setOpenHistoryDialog(true);
+            }}
             startIcon={<HistoryIcon />}
           >
             历史
@@ -2842,21 +2845,6 @@ const GameTable = () => {
             startIcon={<PeopleIcon />}
           >
             玩家
-          </Button>
-          
-          {/* 添加发牌动画测试按钮 */}
-          <Button
-            variant="outlined"
-            color="warning"
-            size="small"
-            onClick={handleTestDealingAnimation}
-            disabled={showDealingAnimation}
-            sx={{ 
-              minWidth: '100px',
-              bgcolor: showDealingAnimation ? 'rgba(0,0,0,0.1)' : 'transparent'
-            }}
-          >
-            {showDealingAnimation ? "发牌中..." : "测试发牌"}
           </Button>
           
           <Button
