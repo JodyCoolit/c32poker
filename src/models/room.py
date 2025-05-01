@@ -3,8 +3,16 @@ import time
 from datetime import datetime, timedelta
 from src.models.player import Player
 
+# Dictionary to store all rooms with their game references
+_games_to_rooms = {}
+
+def get_room_by_game(game_instance):
+    """Helper function to get the room that contains a specific game instance"""
+    global _games_to_rooms
+    return _games_to_rooms.get(id(game_instance))
+
 class Room:
-    def __init__(self, room_id, name, max_players=8, small_blind=None, big_blind=None, buy_in_min=None, buy_in_max=None, game_duration_hours=2):
+    def __init__(self, room_id, name, max_players=8, small_blind=None, big_blind=None, buy_in_min=None, buy_in_max=None, game_duration_hours=1):
         print(f"Creating Room: id={room_id}, name={name}")
         self.room_id = room_id
         self.name = name
@@ -187,7 +195,8 @@ class Room:
             # 创建游戏实例
             print(f"Creating Game instance with players_info: {players_info}")
             self.game = Game(players_info, small_blind=self.small_blind, big_blind=self.big_blind)
-            
+            global _games_to_rooms
+            _games_to_rooms[id(self.game)] = self
             self.game.start_round() 
             self.status = "playing"
             
@@ -207,15 +216,11 @@ class Room:
         """结束游戏"""
         if not self.game:
             return False, "没有进行中的游戏"
-            
-        # 计算赢家
-        winners = self.game.get_winners()
-        pot_per_winner = self.game.pot // len(winners) if winners else 0
         
-        # 分配奖金
-        for winner in winners:
-            if winner.name in self.players:
-                self.players[winner.name].chips += pot_per_winner
+        # 从映射中移除游戏实例
+        global _games_to_rooms
+        if id(self.game) in _games_to_rooms:
+            del _games_to_rooms[id(self.game)]
         
         # 重置游戏
         self.game = None

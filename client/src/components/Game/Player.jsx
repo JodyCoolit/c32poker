@@ -1,7 +1,9 @@
 import React from 'react';
 import { Box, Paper, Typography, Badge, Avatar } from '@mui/material';
-import Card from './Card';
+import PlayingCard from './PlayingCard';
 import DealerButton from './DealerButton';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'; // 导入奖杯图标
+import StarIcon from '@mui/icons-material/Star'; // 导入备用星星图标
 
 /**
  * Player component for displaying player information at the poker table
@@ -30,6 +32,9 @@ const Player = ({
     // Use hasDiscarded property if provided, otherwise default to false
     const hasDiscarded = player.hasDiscarded || false;
     const discardedCard = player.discardedCard || null;
+    
+    // 检查玩家是否是获胜者
+    const isWinner = player.is_winner || false;
     
     // Random color from a predefined set for player avatars
     const getPlayerColor = () => {
@@ -73,14 +78,11 @@ const Player = ({
                         transform: `rotate(${index === 0 ? '-5deg' : '5deg'})`,
                         zIndex: index + 1
                     }}>
-                        <Card 
+                        <PlayingCard 
                                     card={cardValue || ''} 
-                            size="small"
-                            faceDown={!shouldShowCards}
-                                    style={{
-                                        border: '2px solid white',
-                                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
-                                    }}
+                                    faceUp={shouldShowCards}
+                                    selected={false}
+                                    onClick={() => {}}
                                 />
                             </Box>
                         );
@@ -94,14 +96,11 @@ const Player = ({
                             right: -20,
                             transform: 'rotate(15deg)'
                         }}>
-                            <Card 
+                            <PlayingCard 
                                 card={typeof discardedCard === 'string' ? discardedCard : 
                                     (discardedCard.display || discardedCard.value || discardedCard)} 
-                                size="small"
-                                style={{
-                                    opacity: 0.8,
-                                    border: '2px solid rgba(255,0,0,0.5)'
-                                }}
+                                faceUp={true}
+                                selected={false}
                             />
                         </Box>
                     )}
@@ -129,15 +128,11 @@ const Player = ({
                             transform: `rotate(${index === 0 ? '-5deg' : '5deg'})`,
                             zIndex: index + 1
                         }}>
-                            <Card 
+                            <PlayingCard 
                                 card="" 
-                                size="small"
-                                faceDown={true}
-                            style={{
-                                border: '2px solid white',
-                                boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
-                            }}
-                        />
+                                faceUp={false}
+                                selected={false}
+                            />
                     </Box>
                     ))}
                     
@@ -149,14 +144,11 @@ const Player = ({
                         right: -20,
                         transform: 'rotate(15deg)'
                     }}>
-                        <Card 
+                        <PlayingCard 
                                 card={typeof discardedCard === 'string' ? discardedCard : 
                                     (discardedCard.display || discardedCard.value || discardedCard)} 
-                            size="small"
-                            style={{
-                                opacity: 0.8,
-                                border: '2px solid rgba(255,0,0,0.5)'
-                            }}
+                                faceUp={true}
+                                selected={false}
                         />
                     </Box>
                 )}
@@ -281,13 +273,76 @@ const Player = ({
                     borderRadius: 2,
                     minWidth: 90,
                     color: 'white',
-                    border: isActive ? '2px solid #4CAF50' : isCurrentPlayer ? '2px solid #2196F3' : '1px solid rgba(255,255,255,0.2)',
+                    border: isWinner ? '3px solid #FFD700' : isActive ? '2px solid #4CAF50' : isCurrentPlayer ? '2px solid #2196F3' : '1px solid rgba(255,255,255,0.2)',
                     transition: 'all 0.3s ease',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.5)',
+                    boxShadow: isWinner ? '0 0 15px rgba(255, 215, 0, 0.7)' : '0 4px 8px rgba(0,0,0,0.5)',
                     position: 'relative',
-                    overflow: 'visible'
+                    overflow: 'visible',
+                    animation: isWinner ? 'winner-pulse 1.5s infinite' : 'none',
+                    '@keyframes winner-pulse': {
+                        '0%': { boxShadow: '0 0 5px rgba(255, 215, 0, 0.5)' },
+                        '50%': { boxShadow: '0 0 20px rgba(255, 215, 0, 0.8)' },
+                        '100%': { boxShadow: '0 0 5px rgba(255, 215, 0, 0.5)' }
+                    }
                 }}
             >
+                {/* 获胜者奖杯图标 */}
+                {isWinner && (
+                    <React.Fragment>
+                        {/* 主要奖杯图标 */}
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                top: -15,
+                                right: -10,
+                                backgroundColor: '#FFD700',
+                                borderRadius: '50%',
+                                padding: '4px',
+                                zIndex: 20,
+                                boxShadow: '0 0 10px rgba(255, 215, 0, 0.8)',
+                                animation: 'trophy-glow 2s infinite',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 30,
+                                height: 30,
+                                '@keyframes trophy-glow': {
+                                    '0%': { boxShadow: '0 0 5px rgba(255, 215, 0, 0.5)' },
+                                    '50%': { boxShadow: '0 0 15px rgba(255, 215, 0, 0.9)' },
+                                    '100%': { boxShadow: '0 0 5px rgba(255, 215, 0, 0.5)' }
+                                }
+                            }}
+                        >
+                            {/* 使用条件渲染，如果奖杯图标加载失败则显示星星图标 */}
+                            <EmojiEventsIcon sx={{ color: '#8B4513', fontSize: '1.5rem' }} />
+                        </Box>
+                        
+                        {/* 备用冠军标记 - 添加在图标可能无法显示的情况下 */}
+                        <Box
+                            sx={{
+                                position: 'absolute',
+                                top: -25,
+                                right: -20,
+                                backgroundColor: 'transparent',
+                                zIndex: 19,
+                                pointerEvents: 'none'
+                            }}
+                        >
+                            <Typography 
+                                sx={{ 
+                                    fontSize: '1.8rem',
+                                    fontWeight: 'bold',
+                                    color: '#FFD700',
+                                    textShadow: '0 0 3px #000',
+                                    fontFamily: '"Arial Black", Gadget, sans-serif'
+                                }}
+                            >
+                                ★
+                            </Typography>
+                        </Box>
+                    </React.Fragment>
+                )}
+                
                 {/* Avatar */}
                 <Box sx={{ textAlign: 'center', mb: 0.5 }}>
                     <Avatar 
@@ -297,7 +352,7 @@ const Player = ({
                             bgcolor: getPlayerColor(),
                             color: 'white',
                             border: '2px solid',
-                            borderColor: isActive ? '#4CAF50' : 'transparent',
+                            borderColor: isWinner ? '#FFD700' : isActive ? '#4CAF50' : 'transparent',
                             margin: '0 auto'
                         }}
                     >
@@ -314,7 +369,8 @@ const Player = ({
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        fontSize: '0.7rem'
+                        fontSize: '0.7rem',
+                        color: isWinner ? '#FFD700' : 'white'
                     }}
                 >
                     {player.name}
@@ -323,7 +379,7 @@ const Player = ({
                 {/* Player chips */}
                 <Typography 
                     sx={{ 
-                        color: '#FFD700', 
+                        color: isWinner ? '#FFD700' : '#FFD700', 
                         textAlign: 'center',
                         fontWeight: 'bold',
                         fontSize: '0.75rem'
@@ -386,6 +442,32 @@ const Player = ({
                     zIndex: 20
                 }}>
                     +{player.pending_chips} BB
+                </Box>
+            )}
+            
+            {/* 获胜者筹码奖励指示器 */}
+            {isWinner && player.chipsWon > 0 && (
+                <Box sx={{ 
+                    position: 'absolute',
+                    bottom: -10,
+                    right: -10,
+                    backgroundColor: 'rgba(255, 215, 0, 0.9)',
+                    color: 'black',
+                    fontSize: '0.7rem',
+                    fontWeight: 'bold',
+                    padding: '3px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid #FFD700',
+                    boxShadow: '0 0 10px rgba(255, 215, 0, 0.5)',
+                    zIndex: 20,
+                    animation: 'chip-win-pulse 1.5s infinite',
+                    '@keyframes chip-win-pulse': {
+                        '0%': { transform: 'scale(1)' },
+                        '50%': { transform: 'scale(1.1)' },
+                        '100%': { transform: 'scale(1)' }
+                    }
+                }}>
+                    +{player.chipsWon} BB
                 </Box>
             )}
         </Box>

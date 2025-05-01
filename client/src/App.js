@@ -8,6 +8,7 @@ import Layout from './components/Layout/Layout';
 import PrivateRoute from './components/Auth/PrivateRoute';
 import { authService } from './services/api';
 import { CircularProgress, Box, Typography } from '@mui/material';
+import AdminPage from './components/Admin/AdminPage';
 
 // 创建认证上下文
 export const AuthContext = createContext();
@@ -166,8 +167,12 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* 公共路由 */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* 公共路由 - 根据token存在与否决定重定向到登录页还是房间列表 */}
+          <Route path="/" element={
+            localStorage.getItem('token') ? 
+            <Navigate to="/rooms" replace /> : 
+            <Navigate to="/login" replace />
+          } />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
@@ -186,6 +191,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <GameTable />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <PrivateRoute>
+                  <AdminPage />
                 </PrivateRoute>
               } 
             />

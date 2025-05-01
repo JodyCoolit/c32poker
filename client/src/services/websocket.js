@@ -1,4 +1,5 @@
 import { toast } from 'react-toastify';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 class WebSocketService {
     constructor() {
@@ -270,6 +271,7 @@ class WebSocketService {
                     message: '连接服务器时发生错误',
                     error 
                 });
+                useNavigate()('/rooms');
             };
 
             this.socket.onmessage = (event) => {

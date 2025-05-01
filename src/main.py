@@ -22,6 +22,7 @@ from src.websocket_manager import ws_manager
 from src.api_routes import routers as api_routers
 from src.room_routes import router as room_router
 from src.game_routes import router as game_router
+from src.bug_routes import bug_router
 
 # Import the timer update task from game.py
 from src.models.game import timer_update_task
@@ -78,6 +79,7 @@ for router in api_routers:
 
 app.include_router(room_router, prefix="/api")  # Room-related routes
 app.include_router(game_router, prefix="/api")  # Game-related routes
+app.include_router(bug_router, prefix="/api")  # Bug report routes
 
 # Helper function to check if the provided token is valid
 def verify_token(token: str) -> Optional[str]:

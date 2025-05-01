@@ -21,6 +21,10 @@ class SoundEffectsManager {
       shuffle: '/assets/sounds/card-shuffle.mp3', // 使用现有的洗牌音效
       win: '/assets/sounds/win.mp3',
       chips: '/assets/sounds/chips.mp3',
+      gameover: '/assets/sounds/gameover.wav', // 游戏结束音效
+      sitdown: '/assets/sounds/sitdown.mp3', // 添加玩家坐下音效
+      changeseat: '/assets/sounds/sitdown.mp3', // 添加玩家换座位音效 (暂用相同的音效)
+      standup: '/assets/sounds/standup.mp3', // 添加玩家站起音效
     };
     
     // 音量设置 (0 到 1)
@@ -207,6 +211,38 @@ class SoundEffectsManager {
    */
   playChipsSound() {
     return this.playSound('chips');
+  }
+  
+  /**
+   * 播放游戏结束音效
+   * @returns {Promise} 播放完成的Promise
+   */
+  playGameOverSound() {
+    return this.playSound('gameover');
+  }
+  
+  /**
+   * 播放玩家坐下音效
+   * @returns {Promise} 播放完成的Promise
+   */
+  playSitDownSound() {
+    return this.playSound('sitdown');
+  }
+  
+  /**
+   * 播放玩家换座位音效
+   * @returns {Promise} 播放完成的Promise
+   */
+  playChangeSeatSound() {
+    return this.playSound('changeseat');
+  }
+  
+  /**
+   * 播放玩家站起音效
+   * @returns {Promise} 播放完成的Promise
+   */
+  playStandUpSound() {
+    return this.playSound('standup');
   }
   
   /**

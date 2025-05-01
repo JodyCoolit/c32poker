@@ -4,6 +4,7 @@ import { Box, AppBar, Toolbar, Typography, Button, Avatar, IconButton, Menu, Men
 import { useAuth } from '../../App';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { useState } from 'react';
+import BugReportButton from '../BugReport';
 
 const Layout = () => {
     const { user, logout } = useAuth();
@@ -27,6 +28,9 @@ const Layout = () => {
     
     // 检查当前是否在游戏页面
     const isGamePage = location.pathname.includes('/game/');
+    
+    // 检查当前是否在房间列表或游戏页面
+    const shouldShowBugReport = location.pathname.includes('/rooms') || isGamePage;
     
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -81,6 +85,9 @@ const Layout = () => {
             <Box sx={{ flexGrow: 1 }}>
                 <Outlet />
             </Box>
+            
+            {/* 仅在房间列表和游戏页面显示Bug Report按钮 */}
+            {shouldShowBugReport && <BugReportButton />}
         </Box>
     );
 };

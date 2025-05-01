@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, Paper, Chip, Button } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import PlayerCard from './PlayerCard';
 import CommunityCards from './CommunityCards';
-import PlayerActions from './PlayerActions';
-import PotDisplay from './PotDisplay';
-import { Person, Casino, AccessTime } from '@mui/icons-material';
 
 // Styled components
 const TableContainer = styled(Box)(({ theme }) => ({

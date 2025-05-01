@@ -7,6 +7,7 @@ import PrivateRoute from './components/Auth/PrivateRoute';
 import CardDemo from './components/Game/CardDemo';
 import CardDebug from './components/Game/CardDebug';
 import HandDemo from './components/Game/HandDemo';
+import AdminPage from './components/Admin';
 
 function App() {
     return (
@@ -20,6 +21,11 @@ function App() {
                 <Route path="/table" element={
                     <PrivateRoute>
                         <GameTable />
+                    </PrivateRoute>
+                } />
+                <Route path="/admin" element={
+                    <PrivateRoute>
+                        <AdminPage />
                     </PrivateRoute>
                 } />
                 <Route path="/card-demo" element={<CardDemo />} />

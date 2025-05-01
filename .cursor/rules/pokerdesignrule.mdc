@@ -23,8 +23,10 @@ WebSocket 通信：
 websocket_manager.py：管理WebSocket连接和房间内通信
 main.py：提供 WebSocket 端点，处理实时游戏信息交换
 
+当我说，“说思路”的时候，只需要列出思考内容，不要修改代码
 一定要注意py的indentation error
 不要过度防御性编程
+虽然我们平时在windows上测试，但是注意后端项目的代码写法要注意linux兼容性
 
 在打印DEBUG LOG是使用console.group以及console.groupEnd进行分组打印，这样方便在console使用关键字过滤出来关注的重点。
 

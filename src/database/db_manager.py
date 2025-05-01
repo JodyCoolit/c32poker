@@ -34,6 +34,21 @@ class DBManager:
         )
         ''')
         
+        # 创建Bug报告表
+        c.execute('''
+        CREATE TABLE IF NOT EXISTS bug_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            description TEXT NOT NULL,
+            contact TEXT,
+            system_info TEXT,
+            status TEXT DEFAULT 'pending',
+            images TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(username)
+        )
+        ''')
+        
         conn.commit()
         conn.close()
         
@@ -430,3 +445,124 @@ class DBManager:
             "top_profit_player": top_profit_player,
             "top_win_rate_player": top_win_rate_player
         }
+        
+    def submit_bug_report(self, user_id, description, contact=None, system_info=None, images=None):
+        """提交Bug报告"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            
+            # 将图片和系统信息转换为JSON字符串存储
+            import json
+            images_json = json.dumps(images) if images else None
+            system_info_json = json.dumps(system_info) if system_info else None
+            
+            c.execute('''
+            INSERT INTO bug_reports (user_id, description, contact, system_info, images)
+            VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, description, contact, system_info_json, images_json))
+            
+            report_id = c.lastrowid
+            conn.commit()
+            
+            return True, report_id
+        except Exception as e:
+            return False, f"提交Bug报告失败: {str(e)}"
+        finally:
+            conn.close()
+            
+    def get_bug_reports(self, limit=10, offset=0, status=None):
+        """获取Bug报告列表，支持分页和状态筛选"""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        
+        query = '''
+        SELECT id, user_id, description, contact, system_info, status, images, created_at
+        FROM bug_reports
+        '''
+        
+        params = []
+        
+        if status:
+            query += ' WHERE status = ?'
+            params.append(status)
+            
+        query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+        params.extend([limit, offset])
+        
+        c.execute(query, params)
+        
+        reports = []
+        for row in c.fetchall():
+            import json
+            system_info = json.loads(row[4]) if row[4] else None
+            images = json.loads(row[6]) if row[6] else None
+            
+            reports.append({
+                "id": row[0],
+                "user_id": row[1],
+                "description": row[2],
+                "contact": row[3],
+                "system_info": system_info,
+                "status": row[5],
+                "images": images,
+                "created_at": row[7]
+            })
+            
+        conn.close()
+        return reports
+        
+    def get_bug_report_by_id(self, report_id):
+        """根据ID获取Bug报告详情"""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        
+        c.execute('''
+        SELECT id, user_id, description, contact, system_info, status, images, created_at
+        FROM bug_reports
+        WHERE id = ?
+        ''', (report_id,))
+        
+        row = c.fetchone()
+        conn.close()
+        
+        if not row:
+            return None
+            
+        import json
+        system_info = json.loads(row[4]) if row[4] else None
+        images = json.loads(row[6]) if row[6] else None
+        
+        return {
+            "id": row[0],
+            "user_id": row[1],
+            "description": row[2],
+            "contact": row[3],
+            "system_info": system_info,
+            "status": row[5],
+            "images": images,
+            "created_at": row[7]
+        }
+        
+    def update_bug_report_status(self, report_id, status):
+        """更新Bug报告状态"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            
+            c.execute('''
+            UPDATE bug_reports
+            SET status = ?
+            WHERE id = ?
+            ''', (status, report_id))
+            
+            conn.commit()
+            
+            if c.rowcount == 0:
+                return False, "Bug报告不存在"
+                
+            return True, "状态更新成功"
+        except Exception as e:
+            return False, f"更新状态失败: {str(e)}"
+        finally:
+            conn.close()

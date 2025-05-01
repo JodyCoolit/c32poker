@@ -99,7 +99,13 @@ export const authService = {
     login: (username, password) => api.post('/api/auth/login', { username, password }),
     register: (username, password) => api.post('/api/auth/register', { username, password }),
     logout: () => api.post('/api/auth/logout'),
-    getProfile: () => api.get('/api/users/profile'),
+    getProfile: () => {
+        const username = localStorage.getItem('username');
+        if (!username) {
+            return Promise.reject(new Error('未登录状态无法获取用户资料'));
+        }
+        return api.get(`/api/users/${username}`);
+    },
     
     // 刷新认证令牌方法
     refreshToken: async () => {
@@ -130,7 +136,8 @@ export const authService = {
         
         try {
             // 尝试获取用户资料，验证token有效性
-            const response = await api.get('/api/users/profile');
+            // 使用正确的API端点：/api/users/{username} 而不是 /api/users/profile
+            const response = await api.get(`/api/users/${username}`);
             return {
                 isAuthenticated: true,
                 user: response.data

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { styled } from '@mui/material/styles';
 import { 
@@ -13,26 +13,21 @@ import PokerTable from './PokerTable';
 import BetArea from './BetArea';
 import PlayerActions from './PlayerActions';
 import BlindsDisplay from './BlindsDisplay';
-import PotDisplay from './PotDisplay';
 import RaiseDialog from './RaiseDialog';
-import ShowdownDialog from './ShowdownDialog';
 import GameHistoryDialog from './GameHistoryDialog';
 import PlayerListDialog from './PlayerListDialog';
 import { gameService, roomService } from '../../services/api';
 import websocketService from '../../services/websocket';
-import logger from '../../utils/logger';
 import { toast } from 'react-hot-toast';
 import AddIcon from '@mui/icons-material/Add';
-import TimerIcon from '@mui/icons-material/Timer';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import HistoryIcon from '@mui/icons-material/History';
 import PeopleIcon from '@mui/icons-material/People';
 import CardDealingAnimation from './CardDealingAnimation';
 import dealingAnimationUtils from '../../utils/dealingAnimationUtils';
-import { keyframes } from 'styled-components';
-import VideogameAssetIcon from '@mui/icons-material/VideogameAsset';
 import DiscardedCard from './DiscardedCard';
 import soundEffects from '../../utils/soundEffects';
+import ChipsDistributionAnimation from './ChipsDistributionAnimation';
 
 // 游戏表格容器样式
 const GameTableContainer = styled(Box)(({ theme }) => ({
@@ -127,6 +122,13 @@ const GameTable = () => {
     communityCards: [],
     max_players: 8 // 设置默认最大玩家数
   });
+  
+  // 使用useRef跟踪上一次的游戏阶段，解决状态闭包问题
+  const previousGamePhaseRef = useRef('WAITING');
+  
+  // 使用useRef跟踪上一次的handid，用于检测新游戏开始
+  const previousHandIdRef = useRef(null);
+  
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -146,7 +148,6 @@ const GameTable = () => {
   
   // 对话框状态
   const [openRaiseDialog, setOpenRaiseDialog] = useState(false);
-  const [openShowdownDialog, setOpenShowdownDialog] = useState(false);
   const [openHistoryDialog, setOpenHistoryDialog] = useState(false);
   const [openPlayerListDialog, setOpenPlayerListDialog] = useState(false);
   const [openBuyInDialog, setOpenBuyInDialog] = useState(false);
@@ -371,7 +372,7 @@ const GameTable = () => {
   // 在gameState或currentUser更新时初始化座位
   useEffect(() => {
     // 仅在开发模式下输出详细日志，且只在DEBUG模式下
-    const DEBUG_LOG = false; // 设置为false关闭日志
+    const DEBUG_LOG = true; // 设置为false关闭日志
     
     if (DEBUG_LOG && process.env.NODE_ENV === 'development') {
       console.log("===== gameState或currentUser发生变化，检查是否需要初始化座位 =====");
@@ -382,6 +383,8 @@ const GameTable = () => {
       }
       
       console.log("currentUser:", currentUser);
+      console.log("gameState:", gameState);
+      console.log("seatDisplayData:", seatDisplayData);
     }
     
     // 仅当gameState和currentUser都有值时才初始化座位
@@ -406,10 +409,13 @@ const GameTable = () => {
     if (!currentSeatData || currentSeatData.length === 0) {
       return true;
     }
+
+    // 获取玩家列表 - 兼容两种数据结构
+    const players = newGameState.game?.players || newGameState.players || [];
     
     // 如果玩家数量变化，则需要更新
     const activePlayers = currentSeatData.filter(seat => seat.player).length;
-    const newPlayerCount = newGameState.players?.length || 0;
+    const newPlayerCount = players.length || 0;
     
     if (activePlayers !== newPlayerCount) {
       return true;
@@ -418,7 +424,7 @@ const GameTable = () => {
     // 检查现有玩家的位置或状态是否发生变化
     let hasPlayerChanged = false;
     
-    newGameState.players?.forEach(player => {
+    players.forEach(player => {
       const playerName = player.name || player.username;
       const playerPosition = player.position !== undefined ? player.position : -1;
       
@@ -547,6 +553,12 @@ const GameTable = () => {
       await gameService.playerAction(roomId, action, amount);
       
       console.log('玩家动作请求已发送');
+      
+      // 播放特定动作的音效
+      if (action === 'stand_up') {
+        // 播放站起音效
+        soundEffects.playStandUpSound();
+      }
       
       // 显示成功消息
       setNotification({
@@ -822,8 +834,6 @@ const GameTable = () => {
       });
     }
     
-    console.log('即将更新游戏状态...', newGameState);
-    setGameState(newGameState);
     
     // 查找当前用户并更新currentPlayer状态
     if (data.room_state.game && data.room_state.game.players && currentUser) {
@@ -978,6 +988,11 @@ const GameTable = () => {
         }
       }
     }
+    
+    // 更新状态
+    setGameState(newGameState);
+    
+    console.log('room_update处理完成，状态已更新');
   };
   
   // 买入操作
@@ -1044,6 +1059,9 @@ const GameTable = () => {
       const response = await gameService.sitDown(roomId, seatIndex);
       console.log('入座请求已发送:', response);
       
+      // 播放入座音效
+      soundEffects.playSitDownSound();
+      
       // 服务器会发送room_update消息，由roomUpdateHandler处理
       
     } catch (error) {
@@ -1106,6 +1124,9 @@ const GameTable = () => {
       await gameService.changeSeat(roomId, logicalPosition);
       
       console.log('换座请求已发送');
+      
+      // 播放换座音效
+      soundEffects.playChangeSeatSound();
       
       // 成功完成后清除超时
       clearTimeout(timeoutId);
@@ -1197,26 +1218,52 @@ const GameTable = () => {
       
       // 检查WebSocket连接状态
       if (!websocketService.isConnected) {
-        throw new Error('WebSocket未连接，请刷新页面重试');
+        console.warn('WebSocket未连接，尝试重新连接...');
+        // 尝试重新连接
+        try {
+          await gameService.connectToGameRoom(roomId);
+          console.log('WebSocket重新连接成功，继续退出游戏操作');
+        } catch (connectError) {
+          console.error('WebSocket重新连接失败，直接导航回房间列表:', connectError);
+          toast.warning('无法与游戏服务器通信，将退出游戏...');
+          
+          // 延迟导航回房间列表页
+          setTimeout(() => {
+            navigate('/rooms');
+          }, 1000);
+          return;
+        }
       }
       
       // 使用gameService通过WebSocket发送退出游戏请求
-      await gameService.exitGame(roomId);
+      try {
+        await gameService.exitGame(roomId);
+        console.log('退出游戏请求已发送');
+        toast.success('已成功退出游戏');
+      } catch (exitError) {
+        console.error('发送退出游戏请求失败:', exitError);
+        toast.warning('无法发送退出请求，但仍将退出游戏');
+      }
       
-      console.log('退出游戏请求已发送');
+      // 关闭任何现有的WebSocket连接
+      if (websocketService.isConnected) {
+        websocketService.disconnect();
+      }
       
-      // 显示成功消息
-      toast.success('退出游戏请求已发送');
-      
-      // 延迟导航回房间列表页
+      // 无论成功与否，都导航回房间列表页
       setTimeout(() => {
         navigate('/rooms');
       }, 1000);
       
     } catch (error) {
-      console.error('退出游戏失败:', error);
-      toast.error(error.message || '退出游戏失败，请稍后重试');
-            } finally {
+      console.error('退出游戏过程中出错:', error);
+      toast.error(error.message || '退出游戏失败，但仍将退出');
+      
+      // 即使出错，也尝试导航回房间列表
+      setTimeout(() => {
+        navigate('/rooms');
+      }, 1000);
+    } finally {
       setLoading(false);
     }
   };
@@ -1225,15 +1272,23 @@ const GameTable = () => {
   const fetchGameHistory = async () => {
     if (!roomId) {
       setHistoryError('缺少房间ID');
-                return;
-            }
+      return;
+    }
             
     try {
       setHistoryLoading(true);
       
       // 检查WebSocket连接状态
       if (!websocketService.isConnected) {
-        throw new Error('WebSocket未连接，请刷新页面重试');
+        console.warn('WebSocket未连接，尝试重新连接...');
+        // 尝试重新连接
+        try {
+          await gameService.connectToGameRoom(roomId);
+          console.log('WebSocket重新连接成功，继续获取历史记录');
+        } catch (connectError) {
+          console.error('WebSocket重新连接失败:', connectError);
+          throw new Error('无法与游戏服务器通信，请刷新页面重试');
+        }
       }
       
       // 使用gameService通过WebSocket发送获取历史记录请求
@@ -1277,8 +1332,8 @@ const GameTable = () => {
   const handleStartGame = async () => {
     if (!roomId) {
       console.error('开始游戏失败: 缺少房间ID');
-                return;
-            }
+      return;
+    }
             
     try {
       setLoading(true);
@@ -1286,7 +1341,15 @@ const GameTable = () => {
       
       // 检查WebSocket连接状态
       if (!websocketService.isConnected) {
-        throw new Error('WebSocket未连接，请刷新页面重试');
+        console.warn('WebSocket未连接，尝试重新连接...');
+        // 尝试重新连接
+        try {
+          await gameService.connectToGameRoom(roomId);
+          console.log('WebSocket重新连接成功，继续开始游戏操作');
+        } catch (connectError) {
+          console.error('WebSocket重新连接失败:', connectError);
+          throw new Error('无法与游戏服务器通信，请刷新页面重试');
+        }
       }
       
       // 使用gameService通过WebSocket发送开始游戏请求
@@ -1317,9 +1380,109 @@ const GameTable = () => {
   
   // 处理摊牌过程
   const handleShowdown = (showdownData) => {
+    console.group('处理摊牌信息');
     console.log('摊牌信息:', showdownData);
+    
+    // 保存摊牌数据以便动画结束后使用
+    delayedShowdownDataRef.current = showdownData;
+    
+    // 准备筹码分配动画的获胜者数据
+    const winners = showdownData.players
+      .filter(player => player.isWinner)
+      .map(player => ({
+        position: gameState.game?.players?.find(p => p.name === player.name)?.position || 0,
+        name: player.name,
+        chipsWon: player.chipsWon
+      }));
+    
+    console.log('筹码分配获胜者:', winners);
+    
+    // 计算玩家位置信息用于动画
+    const positions = gameState.game?.players
+      .filter(player => player.position !== undefined && player.position !== null)
+      .map(player => {
+        // 计算玩家位置坐标 (简化版，实际应根据布局计算)
+        // 这里假设使用与CardDealingAnimation相似的位置计算逻辑
+        const angle = (player.position / 8) * 2 * Math.PI; // 8个位置平均分布
+        const radius = 250; // 桌子半径
+        const x = Math.sin(angle) * radius;
+        const y = -Math.cos(angle) * radius;
+        
+        return {
+          position: player.position,
+          name: player.name,
+          x,
+          y
+        };
+      }) || [];
+    
+    setPlayerPositions(positions);
+    setDistributionWinners(winners);
+    
+    // 如果有获胜者且有筹码，显示分配动画
+    if (winners.length > 0 && showdownData.pot?.main > 0) {
+      console.log('开始筹码分配动画');
+      setShowDistributionAnimation(true);
+      setShowdownDelayed(true);
+      
+      // 播放游戏结束音效
+      soundEffects.playGameOverSound();
+    } else {
+      // 如果没有获胜者或筹码，直接显示摊牌信息
+      console.log('无需筹码分配动画，直接显示摊牌信息');
+      completeShowdown(showdownData);
+    }
+    
+    console.groupEnd();
+  };
+  
+  // 筹码分配动画完成后的回调
+  const handleDistributionAnimationComplete = () => {
+    console.log('筹码分配动画完成');
+    setShowDistributionAnimation(false);
+    
+    // 播放赢牌音效
+    soundEffects.playWinSound();
+    
+    // 如果有延迟的摊牌数据，显示摊牌对话框
+    if (showdownDelayed && delayedShowdownDataRef.current) {
+      completeShowdown(delayedShowdownDataRef.current);
+      setShowdownDelayed(false);
+    }
+  };
+  
+  // 完成摊牌流程
+  const completeShowdown = (showdownData) => {
+    // 设置摊牌信息，用于对话框显示
     setShowdownInfo(showdownData);
-    setOpenShowdownDialog(true);
+    
+    // 设置显示所有玩家手牌的状态为true
+    setShowCards(true);
+    
+    // 更新游戏状态中的玩家信息，为获胜玩家添加chipsWon和isWinner属性
+    setGameState(prevState => {
+      const updatedPlayers = prevState.game?.players?.map(player => {
+        // 找到该玩家对应的摊牌数据
+        const playerShowdownData = showdownData.players.find(p => p.name === player.name);
+        
+        if (playerShowdownData) {
+          return {
+            ...player,
+            isWinner: playerShowdownData.isWinner,
+            chipsWon: playerShowdownData.chipsWon
+          };
+        }
+        return player;
+      }) || [];
+      
+      return {
+        ...prevState,
+        game: {
+          ...prevState.game,
+          players: updatedPlayers
+        }
+      };
+    });
   };
   
   // 获取动作文本
@@ -1404,43 +1567,67 @@ const GameTable = () => {
             const initialGameStateHandler = (data) => {
               console.log('收到初始游戏状态:', data);
               if (data) {
-                    setGameState(data);
+                // 检查房间状态是否为finished，如果是则重定向到房间列表
+                if (data.status === "finished") {
+                  console.log('房间游戏已结束，重定向到房间列表页面');
+                  enqueueSnackbar('该房间游戏已结束', { 
+                    variant: 'info',
+                    autoHideDuration: 3000
+                  });
+                  navigate('/rooms');
+                  return;
+                }
+                // 处理游戏状态，允许数据可能嵌套在game对象中
+                const newGameState = JSON.parse(JSON.stringify(data));
+
+                // 提取嵌套在game对象中的玩家信息
+                if (newGameState.game && newGameState.game.players && Array.isArray(newGameState.game.players)) {
+                  console.log(`从game对象提取玩家列表，玩家数量: ${newGameState.game.players.length}`);
+                  // 如果顶级没有players数组，或者是空数组，则使用game.players
+                  if (!newGameState.players || !Array.isArray(newGameState.players) || newGameState.players.length === 0) {
+                    newGameState.players = newGameState.game.players;
+                  }
+                }
+
+                // 设置处理后的游戏状态
+                setGameState(newGameState);
                 
                 // 尝试找到并设置当前玩家信息
-                if (data.players && currentUser) {
-                  const player = data.players.find(p => 
+                const players = newGameState.players || [];
+                if (players.length > 0 && currentUser) {
+                  const player = players.find(p => 
                     p.name === currentUser || p.username === currentUser
                   );
                   
-            if (player) {
+                  if (player) {
                     console.log('初始化当前玩家信息:', player);
                   
-                  // 检查玩家是否有有效的座位号
-                  const hasValidSeat = (player.position !== undefined && player.position !== null && player.position >= 0) ||
-                                      (player.seat !== undefined && player.seat !== null && player.seat >= 0);
+                    // 检查玩家是否有有效的座位号
+                    const hasValidSeat = (player.position !== undefined && player.position !== null && player.position >= 0) ||
+                                        (player.seat !== undefined && player.seat !== null && player.seat >= 0);
                   
-                  // 如果玩家没有有效座位，确保position值为null或-1
-                  if (!hasValidSeat) {
-                    console.log('玩家未入座，设置position为-1');
+                    // 如果玩家没有有效座位，确保position值为null或-1
+                    if (!hasValidSeat) {
+                      console.log('玩家未入座，设置position为-1');
+                      setCurrentPlayer({
+                      ...player,
+                        position: -1,
+                        seat: -1
+                      });
+                    } else {
+                      // 保留原始数据，不做修改
+                      setCurrentPlayer(player);
+                    }
+                  } else {
+                    // 没有找到玩家信息，设置默认值
+                    console.log('未找到玩家信息，创建默认值');
                     setCurrentPlayer({
-                    ...player,
+                      username: currentUser,
+                      chips: 0,
                       position: -1,
                       seat: -1
-                    });
-                  } else {
-                    // 保留原始数据，不做修改
-                    setCurrentPlayer(player);
-                  }
-                } else {
-                  // 没有找到玩家信息，设置默认值
-                  console.log('未找到玩家信息，创建默认值');
-                  setCurrentPlayer({
-                    username: currentUser,
-                    chips: 0,
-                    position: -1,
-                    seat: -1
-                    });
-                  }
+                      });
+                    }
                 }
               }
               
@@ -1630,6 +1817,13 @@ const GameTable = () => {
           setDiscardedCard(updateData.result.discarded_card);
         }
       }
+      
+      // 处理弃牌(fold)动作
+      if (updateData.action === 'fold') {
+        console.log('检测到弃牌(fold)操作:', updateData);
+        // 播放弃牌音效
+        soundEffects.playFoldSound();
+      }
     };
 
     // 注册gameUpdate事件监听器
@@ -1706,9 +1900,6 @@ const GameTable = () => {
     const isRoomUpdateFormat = data && data.room_state;
     const isDirectGameStateFormat = data && (data.game_state || data.game);
     
-    // 提取旧的游戏阶段（更新前）
-    const oldGamePhase = gameState?.gamePhase;
-    console.log('即将更新游戏状态 oldGamePhase', oldGamePhase);
     
     // 根据不同格式处理数据
     let newGameState;
@@ -1851,6 +2042,39 @@ const GameTable = () => {
                          (newGameState.game && newGameState.game.game_phase) || 
                          (newGameState.status === "playing" ? "PRE_FLOP" : "WAITING");
       
+      // 从ref中获取上一次的游戏阶段
+      const oldGamePhase = previousGamePhaseRef.current;
+      console.log('即将更新游戏状态 oldGamePhase (从ref获取):', oldGamePhase);
+      console.log('即将更新游戏状态 newGamePhase:', newGamePhase);
+      
+      // 提取并跟踪handid变化
+      const currentHandId = newGameState.game?.handid;
+      const previousHandId = previousHandIdRef.current;
+      console.log('currentHandId and previousHandId', currentHandId, previousHandId, newGameState.game)
+      
+      // 检测handid变化
+      if (currentHandId && currentHandId !== previousHandId) {
+        console.group('===== 检测到新的游戏回合 =====');
+        console.log('前一个handid:', previousHandId);
+        console.log('当前handid:', currentHandId);
+        console.log('游戏阶段:', newGamePhase);
+        console.groupEnd();
+        
+        if (!showDealingAnimation) {
+          // 触发发牌动画
+          setShowDealingAnimation(true);
+          
+          // 预加载音频
+          dealingAnimationUtils.preloadAudio().catch(err => {
+            console.warn("音频预加载失败:", err);
+            // 即使音频加载失败，也继续执行动画
+          });
+        }
+        
+        // 更新handid引用
+        previousHandIdRef.current = currentHandId;
+      }
+      
       // 检测游戏阶段变化并播放相应音效
       if (oldGamePhase !== newGamePhase) {
         console.log(`游戏阶段变化: ${oldGamePhase} -> ${newGamePhase}`);
@@ -1861,31 +2085,6 @@ const GameTable = () => {
             (oldGamePhase === 'TURN' && newGamePhase === 'RIVER')) {
           console.log(`播放翻牌音效: ${newGamePhase}阶段`);
           soundEffects.playFlopSound();
-        }
-        
-        // 检测游戏开始状态
-        if (oldGamePhase !== "PRE_FLOP" && newGamePhase === "PRE_FLOP") {
-          console.log("检测到游戏开始从非PRE_FLOP变为PRE_FLOP，触发发牌动画");
-          console.group('===== 游戏阶段变化检测 =====');
-          console.log('gameState.gamePhase:', gameState.gamePhase);
-          console.log(`游戏阶段变化: ${oldGamePhase} -> ${newGamePhase}`);
-          console.log('玩家手牌:', playerHand.length + '张');
-          console.log('新的手牌:', newGameState.my_hand);
-          console.log('游戏状态:', newGameState.status);
-          console.log('newGameState:', newGameState);
-          console.groupEnd()
-          
-          // 使用与测试功能相同的动画处理方法
-          if (!showDealingAnimation) {
-            // 触发发牌动画
-            setShowDealingAnimation(true);
-            
-            // 预加载音频
-            dealingAnimationUtils.preloadAudio().catch(err => {
-              console.warn("音频预加载失败:", err);
-              // 即使音频加载失败，也继续执行动画
-            });
-          }
         }
       }
       
@@ -1948,38 +2147,37 @@ const GameTable = () => {
       
       // 处理游戏结束和摊牌
       if (newGameState.hand_complete) {
-        console.log("检测到游戏回合结束，准备显示摊牌对话框");
+        console.log("检测到游戏回合结束，准备显示摊牌对话框 newGameState: ", newGameState);
         
         // 准备摊牌数据
         const showdownData = {
-          players: newGameState.players
+          players: newGameState.game.players
             .filter(player => player.is_active || (player.hand && player.hand.length > 0))
             .map(player => ({
               name: player.name,
               hand: player.hand,
               isWinner: player.is_winner || (newGameState.hand_winners && newGameState.hand_winners.includes(player.position)),
-              chipsWon: player.is_winner ? newGameState.pot / (newGameState.hand_winners?.length || 1) : 0
+              chipsWon: player.is_winner ? newGameState.game.total_pot / (newGameState.hand_winners?.length || 1) : 0
             })),
           communityCards: newGameState.community_cards,
-          winners: newGameState.players
+          winners: newGameState.game.players
             .filter(player => player.is_winner || (newGameState.hand_winners && newGameState.hand_winners.includes(player.position)))
             .map(player => ({
               name: player.name,
               position: player.position
             })),
-          pot: { main: newGameState.pot }
+          pot: { main: newGameState.game.total_pot }
         };
         
-        // 播放赢牌音效
-        soundEffects.playWinSound();
-        
-        // 显示摊牌对话框
-        setShowdownInfo(showdownData);
-        setOpenShowdownDialog(true);
+        handleShowdown(showdownData);
       }
       
       // 更新状态
       setGameState(newGameState);
+      
+      // 在完成状态更新后，保存当前游戏阶段到ref中，以备下次比较
+      previousGamePhaseRef.current = newGamePhase;
+      console.log('即将更新游戏状态 gamePhase 已更新为:', newGamePhase);
     } catch (error) {
       console.error('处理游戏状态更新时出错:', error);
     }
@@ -2114,6 +2312,9 @@ const GameTable = () => {
     try {
       await websocketService.discard(selectedCardIndex);
       handleDiscardComplete(selectedCardIndex);
+      
+      // 播放弃牌音效
+      soundEffects.playFoldSound();
     } catch (error) {
       console.error('弃牌失败:', error);
       setNotification({
@@ -2318,9 +2519,9 @@ const GameTable = () => {
     // 如果已经在动画中，不做任何操作
     if (showDealingAnimation) {
       console.log("发牌动画已经在进行中，跳过");
-      return;
-    }
-    
+        return;
+      }
+      
     // 启动动画
     setShowDealingAnimation(true);
     
@@ -2334,6 +2535,12 @@ const GameTable = () => {
   // 动画完成回调
   const handleAnimationComplete = () => {
     console.log("发牌动画完成");
+    
+    // 获取当前handid，并记录日志
+    const currentHandId = gameState.game?.handid;
+    if (currentHandId) {
+      console.log(`发牌动画完成，当前游戏回合ID: ${currentHandId}`);
+    }
     
     // 确保状态被正确重置
     setTimeout(() => {
@@ -2574,6 +2781,12 @@ const GameTable = () => {
     const userPlayer = getUserPlayer();
     return userPlayer && currentPlayerIdx !== undefined && userPlayer.position === currentPlayerIdx;
   };
+  
+  const [showDistributionAnimation, setShowDistributionAnimation] = useState(false);
+  const [distributionWinners, setDistributionWinners] = useState([]);
+  const [playerPositions, setPlayerPositions] = useState([]);
+  const [showdownDelayed, setShowdownDelayed] = useState(false);
+  const delayedShowdownDataRef = useRef(null);
   
         return (
     <GameTableContainer>
@@ -2927,16 +3140,6 @@ const GameTable = () => {
         action={gameState.currentBet > 0 ? "raise" : "bet"}
       />
       
-      {/* 摊牌对话框 */}
-      <ShowdownDialog
-        open={openShowdownDialog}
-        onClose={() => setOpenShowdownDialog(false)}
-        players={showdownInfo.players || []}
-        communityCards={showdownInfo.communityCards || []}
-        winners={showdownInfo.winners || []}
-        pot={showdownInfo.pot || { main: 0, sidePots: [] }}
-      />
-      
       {/* 历史记录对话框 */}
       <GameHistoryDialog
         open={openHistoryDialog}
@@ -3086,6 +3289,15 @@ const GameTable = () => {
       >
         {/* 其他内容保持不变 */}
       </Box>
+      
+      {/* 添加筹码分配动画组件 */}
+      <ChipsDistributionAnimation
+        isActive={showDistributionAnimation}
+        winners={distributionWinners}
+        pot={gameState.pot || (gameState.game && gameState.game.total_pot) || 0}
+        onAnimationComplete={handleDistributionAnimationComplete}
+        playerPositions={playerPositions}
+      />
     </GameTableContainer>
         );
 };

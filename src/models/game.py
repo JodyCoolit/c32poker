@@ -31,6 +31,9 @@ class Game:
         try:
             print(f"Initializing Game with players_info: {players_info}")
             
+            # 生成初始的手牌ID
+            self.handid = str(uuid.uuid4())
+            
             # 初始化游戏参数
             self.small_blind = small_blind if small_blind is not None else 0.5
             self.big_blind = big_blind if big_blind is not None else 1
@@ -168,6 +171,7 @@ class Game:
                 "amount": small_blind_amount,
                 "timestamp": time.time()
             })
+
             
         # 大盲下注
         if big_blind_idx in self.active_players:
@@ -201,6 +205,7 @@ class Game:
     
     def to_dict(self):
         return {
+            "handid": self.handid,
             "deck": self.deck.to_dict(),
             "players": self.players,
             "active_players": self.active_players,
@@ -669,6 +674,7 @@ class Game:
         try:
             # 创建游戏状态字典
             state = {
+                "handid": self.handid,
                 "state": "playing",
                 "players": [],
                 "pot": self.pot,
@@ -851,6 +857,42 @@ class Game:
         """Cancel existing timers and schedule the start of the next hand after 5 seconds"""
         self.cancel_all_timers()
         
+        # Get a reference to the room object from global context
+        from src.models.room import get_room_by_game
+        room = get_room_by_game(self)
+        
+        # Check if room exists and if game time is over
+        if room and room.get_remaining_time() <= 0:
+            print(f"Game time is over. Ending game in room {room.room_id}")
+            # Cancel all timers to prevent memory leaks
+            self.cancel_all_timers()
+            
+            # End the game in the room
+            room.end_game()
+            
+            # Broadcast game end event
+            import asyncio
+            from src.websocket_manager import ws_manager
+            
+            # Create a game end message
+            game_end_message = {
+                "type": "game_end",
+                "data": {
+                    "reason": "time_limit_reached",
+                    "message": "游戏时间已结束",
+                    "timestamp": time.time()
+                }
+            }
+            
+            # Schedule the broadcast to avoid blocking
+            try:
+                loop = asyncio.get_event_loop()
+                loop.create_task(ws_manager.broadcast_to_room(room.room_id, game_end_message))
+            except Exception as e:
+                print(f"Error broadcasting game end: {str(e)}")
+            
+            return
+        
         print(f"Next hand will start in 5 seconds...")
         self.next_hand_timer = threading.Timer(5.0, self.start_next_hand)
         self.next_hand_timer.daemon = True
@@ -864,6 +906,10 @@ class Game:
         self.community_cards = []
         self.pot = 0
         self.current_bet = 0
+        
+        # 生成新的手牌ID
+        self.handid = str(uuid.uuid4())
+        print(f"Starting next hand with handid: {self.handid}")
         
         # 重置每个玩家的下注金额
         for position in self.players:
@@ -920,9 +966,6 @@ class Game:
                 })
                 
                 print(f"Player {self.players[winner_idx]['name']} wins {self.pot} chips (all others folded)")
-                
-                # Clear the pot
-                self.pot = 0
                 
                 # Schedule the next hand
                 self.schedule_next_hand()
@@ -1014,10 +1057,6 @@ class Game:
             # Update hand_winners for game state tracking
             self.hand_winners = winners
             
-            # Clear the pot
-            self.pot = 0
-            
-            # Schedule the next hand
             self.schedule_next_hand()
             
         except Exception as e:
