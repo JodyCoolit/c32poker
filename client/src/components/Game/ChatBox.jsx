@@ -11,16 +11,37 @@ import {
   Divider, 
   IconButton, 
   Tooltip,
-  Badge
+  Badge,
+  Menu,
+  MenuItem,
+  Grid,
+  Chip
 } from '@mui/material';
-import { Send, Chat as ChatIcon, Close, KeyboardArrowUp, KeyboardArrowDown } from '@mui/icons-material';
+import { Send, Chat as ChatIcon, Close, KeyboardArrowUp, KeyboardArrowDown, EmojiEmotions } from '@mui/icons-material';
 import websocketService from '../../services/websocket';
+
+// 预定义的快捷聊天消息
+const QUICK_MESSAGES = [
+  { id: 'greeting', text: '卧槽！' },
+  { id: 'gl', text: '秒抓!' },
+  { id: 'nh', text: '这不秒抓?' },
+  { id: 'unlucky', text: 'allin or fold' },
+  { id: 'thanks', text: '简化！' },
+  { id: 'waiting', text: '行了行了行了' },
+  { id: 'fold', text: '庄位不偷？' },
+  { id: 'call', text: '几连啦？' },
+  { id: 'raise', text: '四连了，得来个人治一下他了' },
+  { id: 'bluff', text: 'I AM BLUFFING😏' },
+  { id: 'allIn', text: '准备拍照' },
+  { id: 'thinking', text: '这个逼肯定是27o' },
+];
 
 const ChatBox = ({ roomId }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [quickMessageMenuAnchor, setQuickMessageMenuAnchor] = useState(null);
   const messageEndRef = useRef(null);
   const timeFormat = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit' });
 
@@ -86,6 +107,22 @@ const ChatBox = ({ roomId }) => {
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
     return timeFormat.format(new Date(timestamp * 1000));
+  };
+  
+  // 打开快捷消息菜单
+  const handleOpenQuickMessages = (event) => {
+    setQuickMessageMenuAnchor(event.currentTarget);
+  };
+  
+  // 关闭快捷消息菜单
+  const handleCloseQuickMessages = () => {
+    setQuickMessageMenuAnchor(null);
+  };
+  
+  // 发送快捷消息
+  const sendQuickMessage = (message) => {
+    websocketService.sendChat(message);
+    handleCloseQuickMessages();
   };
 
   return (
@@ -200,6 +237,38 @@ const ChatBox = ({ roomId }) => {
             <div ref={messageEndRef} />
           </Box>
           
+          {/* 快捷短语区域 */}
+          <Box sx={{ p: 1, bgcolor: '#f0f0f0', maxHeight: '200px', overflowX: 'auto' }}>
+            <Grid container spacing={0.5}>
+              {QUICK_MESSAGES.slice(0, 6).map((msg) => (
+                <Grid item key={msg.id}>
+                  <Chip 
+                    label={msg.text}
+                    size="small"
+                    onClick={() => sendQuickMessage(msg.text)}
+                    sx={{ 
+                      fontSize: '0.7rem', 
+                      cursor: 'pointer',
+                      bgcolor: '#e0e0e0',
+                      '&:hover': { bgcolor: '#bdbdbd' }
+                    }}
+                  />
+                </Grid>
+              ))}
+              <Grid item>
+                <Chip 
+                  icon={<KeyboardArrowDown fontSize="small" />}
+                  label="更多"
+                  size="small"
+                  onClick={handleOpenQuickMessages}
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontSize: '0.7rem', cursor: 'pointer' }}
+                />
+              </Grid>
+            </Grid>
+          </Box>
+          
           {/* 消息输入框 */}
           <Box sx={{ p: 1, bgcolor: 'white', display: 'flex' }}>
             <TextField
@@ -240,6 +309,27 @@ const ChatBox = ({ roomId }) => {
           </Box>
         </Paper>
       )}
+      
+      {/* 快捷消息菜单 */}
+      <Menu
+        anchorEl={quickMessageMenuAnchor}
+        open={Boolean(quickMessageMenuAnchor)}
+        onClose={handleCloseQuickMessages}
+        MenuListProps={{
+          dense: true,
+          sx: { maxHeight: 300 }
+        }}
+      >
+        {QUICK_MESSAGES.map((msg) => (
+          <MenuItem 
+            key={msg.id} 
+            onClick={() => sendQuickMessage(msg.text)}
+            sx={{ minWidth: 180 }}
+          >
+            {msg.text}
+          </MenuItem>
+        ))}
+      </Menu>
       
       {/* 聊天按钮 */}
       <Tooltip title={isOpen ? "关闭聊天" : "打开聊天"}>

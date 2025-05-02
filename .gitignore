@@ -29,6 +29,10 @@ htmlcov/
 venv/
 ENV/
 .env
+server_log.txt
+rooms_state.pickle
+rooms_state.pickle.bak
+*.pickle
 
 # ai误操作安装
 node_modules/
