@@ -132,8 +132,8 @@ const ChatBox = ({ roomId }) => {
         <Paper 
           elevation={3} 
           sx={{ 
-            width: 320, 
-            height: 400, 
+            width: 500, 
+            height: 600, 
             mb: 1, 
             display: 'flex', 
             flexDirection: 'column',
@@ -144,7 +144,7 @@ const ChatBox = ({ roomId }) => {
           {/* 聊天标题栏 */}
           <Box 
             sx={{ 
-              p: 1, 
+              p: 1.5, 
               bgcolor: '#1976d2', 
               color: 'white', 
               display: 'flex', 
@@ -152,8 +152,8 @@ const ChatBox = ({ roomId }) => {
               alignItems: 'center'
             }}
           >
-            <Typography variant="subtitle1">游戏聊天</Typography>
-            <IconButton size="small" onClick={toggleChat} sx={{ color: 'white' }}>
+            <Typography variant="h6">游戏聊天</Typography>
+            <IconButton size="medium" onClick={toggleChat} sx={{ color: 'white' }}>
               <Close fontSize="small" />
             </IconButton>
           </Box>
@@ -163,7 +163,7 @@ const ChatBox = ({ roomId }) => {
             sx={{ 
               flexGrow: 1, 
               overflow: 'auto', 
-              p: 1,
+              p: 2,
               bgcolor: '#f5f5f5',
               display: 'flex',
               flexDirection: 'column'
@@ -171,7 +171,7 @@ const ChatBox = ({ roomId }) => {
           >
             {messages.length === 0 ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body1" color="text.secondary">
                   暂无消息，发送一条消息开始聊天
                 </Typography>
               </Box>
@@ -180,7 +180,7 @@ const ChatBox = ({ roomId }) => {
                 <Box
                   key={index}
                   sx={{
-                    mb: 1,
+                    mb: 1.5,
                     maxWidth: '85%',
                     alignSelf: msg.player === localStorage.getItem('username') ? 'flex-end' : 'flex-start'
                   }}
@@ -188,17 +188,17 @@ const ChatBox = ({ roomId }) => {
                   <Paper
                     elevation={1}
                     sx={{
-                      p: 1,
+                      p: 1.5,
                       bgcolor: msg.isSystem 
                         ? '#e1f5fe' 
                         : msg.player === localStorage.getItem('username') 
                           ? '#1976d2' 
                           : 'white',
-                      borderRadius: 1
+                      borderRadius: 1.5
                     }}
                   >
                     {/* 消息头部：发送者和时间 */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.8 }}>
                       <Typography variant="caption" 
                         color={msg.player === localStorage.getItem('username') 
                           ? 'white' 
@@ -207,20 +207,21 @@ const ChatBox = ({ roomId }) => {
                             : '#1976d2'} 
                         sx={{ 
                           fontWeight: 'bold',
-                          fontSize: '0.75rem' 
+                          fontSize: '0.85rem' 
                         }}>
                         {msg.isSystem ? '系统' : msg.player}
                       </Typography>
                       <Typography variant="caption" 
                         color={msg.player === localStorage.getItem('username') 
                           ? 'rgba(255,255,255,0.7)' 
-                          : 'rgba(0,0,0,0.5)'}>
+                          : 'rgba(0,0,0,0.5)'}
+                        sx={{ fontSize: '0.8rem' }}>
                         {formatTimestamp(msg.timestamp)}
                       </Typography>
                     </Box>
                     
                     {/* 消息内容 */}
-                    <Typography variant="body2" sx={{ 
+                    <Typography variant="body1" sx={{ 
                       wordBreak: 'break-word',
                       color: msg.isSystem 
                         ? '#01579b' 
@@ -238,51 +239,76 @@ const ChatBox = ({ roomId }) => {
           </Box>
           
           {/* 快捷短语区域 */}
-          <Box sx={{ p: 1, bgcolor: '#f0f0f0', maxHeight: '200px', overflowX: 'auto' }}>
-            <Grid container spacing={0.5}>
-              {QUICK_MESSAGES.slice(0, 6).map((msg) => (
+          <Box sx={{ 
+            p: 1.5, 
+            bgcolor: '#f0f0f0', 
+            maxHeight: '150px', 
+            minHeight: '120px',
+            overflowY: 'auto',
+            display: 'flex',
+            alignItems: 'flex-start',
+            paddingTop: 0.5
+          }}>
+            <Grid container spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+              {QUICK_MESSAGES.slice(0, 9).map((msg) => (
                 <Grid item key={msg.id}>
                   <Chip 
                     label={msg.text}
-                    size="small"
+                    size="medium"
                     onClick={() => sendQuickMessage(msg.text)}
                     sx={{ 
-                      fontSize: '0.7rem', 
+                      fontSize: '0.9rem', 
                       cursor: 'pointer',
                       bgcolor: '#e0e0e0',
-                      '&:hover': { bgcolor: '#bdbdbd' }
+                      '&:hover': { bgcolor: '#bdbdbd' },
+                      my: 0.7,
+                      py: 1.2,
+                      height: 'auto',
+                      '& .MuiChip-label': {
+                        padding: '1px 4px',
+                        display: 'block',
+                        whiteSpace: 'normal',
+                        lineHeight: 1.4
+                      }
                     }}
                   />
                 </Grid>
               ))}
               <Grid item>
                 <Chip 
-                  icon={<KeyboardArrowDown fontSize="small" />}
+                  icon={<KeyboardArrowDown />}
                   label="更多"
-                  size="small"
+                  size="medium"
                   onClick={handleOpenQuickMessages}
                   color="primary"
                   variant="outlined"
-                  sx={{ fontSize: '0.7rem', cursor: 'pointer' }}
+                  sx={{ 
+                    fontSize: '0.9rem', 
+                    cursor: 'pointer',
+                    my: 0.7,
+                    py: 1.2,
+                    height: 'auto'
+                  }}
                 />
               </Grid>
             </Grid>
           </Box>
           
           {/* 消息输入框 */}
-          <Box sx={{ p: 1, bgcolor: 'white', display: 'flex' }}>
+          <Box sx={{ p: 1.5, bgcolor: 'white', display: 'flex' }}>
             <TextField
               fullWidth
-              size="small"
+              size="medium"
               placeholder="输入消息..."
               variant="outlined"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               sx={{ 
-                mr: 1,
+                mr: 1.5,
                 '& .MuiInputBase-input': {
-                  color: '#333' // 设置输入文字颜色为深色
+                  color: '#333', // 设置输入文字颜色为深色
+                  fontSize: '1rem'
                 },
                 '& .MuiOutlinedInput-root': {
                   '& fieldset': {
@@ -303,6 +329,8 @@ const ChatBox = ({ roomId }) => {
               endIcon={<Send />}
               onClick={sendMessage}
               disabled={newMessage.trim() === ''}
+              size="large"
+              sx={{ minWidth: '100px' }}
             >
               发送
             </Button>
@@ -316,15 +344,15 @@ const ChatBox = ({ roomId }) => {
         open={Boolean(quickMessageMenuAnchor)}
         onClose={handleCloseQuickMessages}
         MenuListProps={{
-          dense: true,
-          sx: { maxHeight: 300 }
+          dense: false,
+          sx: { maxHeight: 400 }
         }}
       >
         {QUICK_MESSAGES.map((msg) => (
           <MenuItem 
             key={msg.id} 
             onClick={() => sendQuickMessage(msg.text)}
-            sx={{ minWidth: 180 }}
+            sx={{ minWidth: 220, fontSize: '1rem', py: 1 }}
           >
             {msg.text}
           </MenuItem>
@@ -341,10 +369,12 @@ const ChatBox = ({ roomId }) => {
             sx={{ 
               bgcolor: 'white', 
               boxShadow: 2,
-              '&:hover': { bgcolor: '#f5f5f5' }
+              '&:hover': { bgcolor: '#f5f5f5' },
+              width: 50,
+              height: 50
             }}
           >
-            {isOpen ? <KeyboardArrowDown /> : <ChatIcon />}
+            {isOpen ? <KeyboardArrowDown fontSize="large" /> : <ChatIcon fontSize="large" />}
           </IconButton>
         </Badge>
       </Tooltip>
