@@ -183,7 +183,8 @@ class Room:
                         "chips": player.chips,
                         "position": position,
                         "total_buy_in": player.total_buy_in,
-                        "pending_buy_in": player.pending_buy_in
+                        "pending_buy_in": player.pending_buy_in,
+                        "online": True
                     })
             
             print(f"Player info list: {players_info}")
@@ -331,9 +332,6 @@ class Room:
             if username not in self.players:
                 # 不自动添加玩家，直接返回失败
                 return {"success": False, "message": "玩家不在房间中，请先加入房间"}
-                
-            # 现在直接处理已存在的玩家
-            # 不再更新座位信息，由sit_down和change_seat接口处理
             
             # 检查玩家是否在当前游戏中活跃
             is_player_active = False
@@ -451,6 +449,27 @@ class Room:
             player.seat = seat_index
             player.position = seat_index  # 确保position属性也被设置
             
+            # 如果游戏已经开始，设置玩家在游戏中的在线状态和位置
+            if self.game and hasattr(self.game, 'players'):
+                if seat_index in self.game.players:
+                    self.game.players[seat_index]['online'] = True
+                    self.game.players[seat_index]['position'] = seat_index
+                    print(f"设置游戏中座位 {seat_index} 的玩家 {username} 在线状态为true，位置为{seat_index}")
+                else:
+                    # 游戏已经开始，但座位号在game.players中不存在，需要添加新玩家数据
+                    self.game.players[seat_index] = {
+                        'name': username,
+                        'chips': player.chips,
+                        'position': seat_index,
+                        'total_buy_in': player.total_buy_in if hasattr(player, 'total_buy_in') else 0,
+                        'pending_buy_in': 0,
+                        'online': True,
+                        'has_discarded': False,
+                        'discarded_card': None,
+                        'bet_amount': 0
+                    }
+                    print(f"游戏已开始，添加新玩家 {username} 到game.players，座位 {seat_index}，筹码 {player.chips}")
+            
             # 更新最后活动时间
             self.update_activity_time()
             
@@ -496,23 +515,20 @@ class Room:
             # 记录当前座位号
             current_seat = player.seat
             
-            # 如果游戏正在进行，需要先让玩家离开游戏
+            # 检查游戏是否已经开始
             if self.game and self.status == "playing":
-                # 找到玩家在游戏中的索引
-                player_idx = None
-                # 检查玩家是否在游戏中 - 游戏中players是一个字典，键为位置，值为玩家信息
-                for position, game_player in self.game.players.items():
-                    if game_player.get('name') == username:
-                        player_idx = position
-                        break
-                
-                # 如果玩家正在游戏中且是活跃玩家，则需要先弃牌
-                if player_idx is not None and player_idx in self.game.active_players:
-                    # 这里可以调用游戏的fold方法，或者直接将玩家从活跃列表中移除
-                    if hasattr(self.game, 'handle_action'):
-                        self.game.handle_action(player_idx, 'fold')
-                    elif hasattr(self.game, 'active_players'):
-                        self.game.active_players.remove(player_idx)
+                # 如果游戏已经开始，返回失败
+                print(f"玩家 {username} 请求站起，但游戏已经开始，无法站起")
+                return {"success": False, "message": "游戏进行中，无法站起"}
+            
+            # 游戏未开始，执行原有的站起逻辑
+            
+            # 检查游戏是否已经开始但可以站起（例如已弃牌）
+            if self.game and hasattr(self.game, 'players') and current_seat in self.game.players:
+                # 如果game.players中存在该位置，更新其position为null
+                if 'position' in self.game.players[current_seat]:
+                    self.game.players[current_seat]['position'] = None
+                    print(f"更新游戏中座位 {current_seat} 的玩家 {username} 位置为null")
             
             # 清除玩家座位 - 同时清除seat和position属性
             player.seat = None
@@ -552,37 +568,76 @@ class Room:
             if username not in self.players:
                 return {"success": False, "message": "玩家不在房间中"}
             
-            # 如果玩家有座位，先让玩家站起
+            # 获取玩家对象
             player = self.players[username]
-            if hasattr(player, 'seat') and player.seat is not None:
-                stand_up_result = self.stand_up(username)
-                if not stand_up_result["success"]:
-                    return stand_up_result
             
-            # 保存玩家筹码数量
-            chips = player.chips
+            # 判断游戏是否已经开始
+            is_game_started = self.game is not None and self.status == "playing"
             
-            # 从房间中移除玩家
-            success, removed_chips = self.remove_player(username)
-            if not success:
-                return {"success": False, "message": "移除玩家失败"}
-            
-            # 如果这是房主离开且房间还有其他玩家，选择新房主
-            if username == self.owner and len(self.players) > 0:
-                # 将第一个玩家设为新房主
-                self.owner = next(iter(self.players.keys()))
-                print(f"房主离开，设置新房主: {self.owner}")
+            if is_game_started:
+                # 游戏已开始，只更新在线状态为false，不执行其他逻辑
+                print(f"游戏已开始，玩家 {username} 离开，仅设置在线状态为false")
                 
-            # 更新最后活动时间
-            self.update_activity_time()
-            
-            print(f"玩家 {username} 已离开房间，带走 {chips} 筹码")
-            
-            return {
-                "success": True,
-                "message": "成功离开房间",
-                "chips": chips
-            }
+                # 找到玩家在游戏中的位置
+                player_position = None
+                if hasattr(player, 'seat') and player.seat is not None:
+                    player_position = player.seat
+                
+                # 如果在游戏中找到了玩家的位置，更新在线状态
+                if player_position is not None and player_position in self.game.players:
+                    # 检查players字典中是否有online字段，如果没有则添加
+                    if 'online' not in self.game.players[player_position]:
+                        self.game.players[player_position]['online'] = False
+                    else:
+                        # 更新在线状态
+                        self.game.players[player_position]['online'] = False
+                    
+                    print(f"已将游戏中位置 {player_position} 的玩家 {username} 设置为离线状态")
+                    
+                    # 返回成功
+                    return {
+                        "success": True,
+                        "message": "成功离开房间（游戏中）",
+                        "chips": player.chips,
+                        "is_game_active": True
+                    }
+                else:
+                    print(f"警告: 未能在游戏中找到玩家 {username} 的位置")
+            else:
+                # 游戏未开始，正常执行站起和移除逻辑
+                print(f"游戏未开始，玩家 {username} 离开，执行正常离开流程")
+                
+                # 如果玩家有座位，先让玩家站起
+                if hasattr(player, 'seat') and player.seat is not None:
+                    stand_up_result = self.stand_up(username)
+                    if not stand_up_result["success"]:
+                        return stand_up_result
+                
+                # 保存玩家筹码数量
+                chips = player.chips
+                
+                # 从房间中移除玩家
+                success, removed_chips = self.remove_player(username)
+                if not success:
+                    return {"success": False, "message": "移除玩家失败"}
+                
+                # 如果这是房主离开且房间还有其他玩家，选择新房主
+                if username == self.owner and len(self.players) > 0:
+                    # 将第一个玩家设为新房主
+                    self.owner = next(iter(self.players.keys()))
+                    print(f"房主离开，设置新房主: {self.owner}")
+                    
+                # 更新最后活动时间
+                self.update_activity_time()
+                
+                print(f"玩家 {username} 已离开房间，带走 {chips} 筹码")
+                
+                return {
+                    "success": True,
+                    "message": "成功离开房间",
+                    "chips": chips,
+                    "is_game_active": False
+                }
             
         except Exception as e:
             import traceback
@@ -704,6 +759,22 @@ class Room:
             player.position = new_seat_index  # 确保position属性也被更新
             print(f"Player {username} changed seat from {old_seat_index} to {new_seat_index}, position also updated to {new_seat_index}")
             
+            # 如果游戏已经开始，更新游戏中的玩家位置信息
+            if self.game and hasattr(self.game, 'players'):
+                # 如果旧座位号在game.players中存在，需要将玩家数据移到新座位号
+                if old_seat_index in self.game.players:
+                    # 临时保存玩家数据
+                    player_data = self.game.players.pop(old_seat_index, None)
+                    if player_data:
+                        # 更新位置信息并存入新座位号
+                        player_data['position'] = new_seat_index
+                        self.game.players[new_seat_index] = player_data
+                        print(f"更新游戏中玩家 {username} 的位置从 {old_seat_index} 到 {new_seat_index}")
+                elif new_seat_index in self.game.players:
+                    # 仅更新位置信息
+                    self.game.players[new_seat_index]['position'] = new_seat_index
+                    print(f"更新游戏中座位 {new_seat_index} 的玩家位置信息")
+            
             return {
                 "success": True, 
                 "message": f"Changed seat from {old_seat_index} to {new_seat_index}",
@@ -714,3 +785,36 @@ class Room:
             import traceback
             traceback.print_exc()
             return {"success": False, "message": f"Error changing seat: {str(e)}"}
+
+    def player_online_status(self, username, is_online):
+        """更新玩家在线状态
+        
+        Args:
+            username (str): 玩家用户名
+            is_online (bool): 玩家是否在线
+            
+        Returns:
+            bool: 操作是否成功
+        """
+        try:
+            # 检查玩家是否在房间中
+            if username not in self.players:
+                print(f"玩家 {username} 不在房间中，无法更新在线状态")
+                return False
+                
+            # 如果游戏已经开始，更新游戏中的玩家在线状态
+            if self.game:
+                # 查找玩家在游戏中的位置
+                for position, player in self.game.players.items():
+                    if player.get('name') == username:
+                        self.game.players[position]['online'] = is_online
+                        print(f"已更新游戏中玩家 {username} 在位置 {position} 的在线状态为 {is_online}")
+                        break
+                
+            print(f"已更新玩家 {username} 的在线状态为 {is_online}")
+            return True
+        except Exception as e:
+            print(f"更新玩家在线状态错误: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False

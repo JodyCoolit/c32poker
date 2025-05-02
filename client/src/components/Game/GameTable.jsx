@@ -2571,7 +2571,7 @@ const GameTable = () => {
     }
     
     // 详细调试每个玩家的数据 - 只在特定条件下输出
-    const DEBUG_LOG = true; // 设置为false关闭日志
+    const DEBUG_LOG = false; // 设置为false关闭日志
     
     if (DEBUG_LOG) {
       console.log("====== 调试玩家数据 ======");

@@ -202,6 +202,13 @@ async def join_room(join_data: RoomJoin):
     # 检查用户是否已在房间中
     if join_data.username in room.players:
         print(f"信息: 用户 {join_data.username} 已在房间中")
+        
+        # 更新游戏中的online状态
+        if room.game:
+            # 设置玩家在线状态为true
+            room.player_online_status(join_data.username, True)
+            print(f"已将玩家 {join_data.username} 的在线状态设置为True")
+            
         return {"message": "已在房间中", "status": "already_joined"}
     
     # 添加玩家到房间

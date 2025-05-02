@@ -51,7 +51,7 @@ class Game:
                 self.players[position]["initial_chips"] = player_info["chips"]
             
             # 按照位置从小到大排序active_players
-            self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0])
+            self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0 and player["online"]])
             self.pot = 0
             self.current_bet = 0
             self.community_cards = []
@@ -61,7 +61,7 @@ class Game:
             self.last_player_to_raise = None
             
             # 使用字典初始化 player_acted，键为玩家位置，只包含筹码大于0的玩家
-            self.player_acted = {p["position"]: False for p in players_info if p.get("chips", 0) > 0}
+            self.player_acted = {position: False for position in self.active_players}
             
             # 初始化评估器和历史记录
             self.hand_evaluator = HandEvaluator()
@@ -234,8 +234,8 @@ class Game:
             self.community_cards = []
             self.betting_round = 0
             
-            # 重置玩家行动状态为字典，只包含筹码大于0的玩家
-            self.player_acted = {position: False for position, player in self.players.items() if player.get("chips", 0) > 0}
+            # 重置玩家行动状态为字典，只包含活跃玩家（还在游戏中的玩家）
+            self.player_acted = {position: False for position in self.active_players}
             
             # 重置每个玩家的弃牌状态
             for position in self.players:
@@ -355,7 +355,6 @@ class Game:
                 current_player["bet_amount"] += call_amount
                 self.player_acted[self.current_player_idx] = True
                 print(f"玩家 {player_name} 跟注 {call_amount}")
-            
             elif action == "raise":
                 # 加注操作
                 if amount <= self.current_bet:
@@ -380,6 +379,11 @@ class Game:
                 current_player["bet_amount"] = amount
                 self.current_bet = amount
                 
+                # 检查玩家是否已经没有筹码（全下）
+                if current_player["chips"] == 0:
+                    current_player["is_all_in"] = True
+                    print(f"玩家 {player_name} 已全下")
+                
                 # 重置其他玩家的行动状态
                 for position in self.active_players:
                     if position != self.current_player_idx:
@@ -396,6 +400,8 @@ class Game:
                 current_player["chips"] = 0
                 all_in_increase = all_in_amount - current_player["bet_amount"]
                 current_player["bet_amount"] = all_in_amount
+                current_player["is_all_in"] = True
+                print(f"玩家 {player_name} 已全下")
                 
                 if all_in_amount > self.current_bet:
                     self.current_bet = all_in_amount
@@ -410,6 +416,19 @@ class Game:
             else:
                 print(f"未知动作: {action}")
                 return {"success": False, "message": f"未知动作: {action}"}
+            
+            # 检查是否所有剩余活跃玩家都已全下
+            all_remaining_all_in = True
+            for position in self.active_players:
+                if not self.players[position].get("is_all_in", False):
+                    all_remaining_all_in = False
+                    break
+            
+            if all_remaining_all_in and len(self.active_players) > 1:
+                print("所有剩余玩家都已全下，直接进入摊牌阶段")
+                # 发放剩余公共牌并结束游戏
+                self.finish_hand()
+                return {"success": True, "message": "所有玩家都已全下，进入摊牌阶段"}
             
             # 检查是否所有玩家都行动过了
             if self.check_all_players_acted():
@@ -558,11 +577,29 @@ class Game:
                 
             # 找到当前玩家在活跃玩家列表中的索引
             current_idx = self.active_players.index(self.current_player_idx)
-            # 找到下一个活跃玩家
-            next_idx = (current_idx + 1) % len(self.active_players)
             
-            # 直接从活跃玩家列表中获取下一个玩家位置
-            self.current_player_idx = self.active_players[next_idx]
+            # 找到下一个非全下的活跃玩家
+            next_player_found = False
+            for _ in range(len(self.active_players)):
+                next_idx = (current_idx + 1) % len(self.active_players)
+                candidate_player_idx = self.active_players[next_idx]
+                
+                # 如果玩家已经全下，继续找下一个
+                if self.players[candidate_player_idx].get("is_all_in", False):
+                    current_idx = next_idx
+                    continue
+                    
+                # 找到了非全下的玩家
+                self.current_player_idx = candidate_player_idx
+                next_player_found = True
+                break
+            
+            # 如果没有找到非全下的玩家，则说明所有玩家都已全下，此时应直接结束当前轮
+            if not next_player_found:
+                print("所有玩家都已全下，结束当前轮")
+                # 结束当前轮并进入下一轮
+                self.advance_betting_round()
+                return
             
             # 更新当前玩家属性
             if self.current_player_idx in self.players:
@@ -580,6 +617,10 @@ class Game:
         
     def check_all_players_acted(self):
         for player_idx in self.active_players:
+            # 跳过已经全下的玩家
+            if self.players[player_idx].get("is_all_in", False):
+                continue
+                
             if not self.player_acted.get(player_idx, False):
                 return False
         return True
@@ -597,9 +638,12 @@ class Game:
             
         # 重置当前最高下注额
         self.current_bet = 0
-            
-        # 重置玩家是否行动过，只包含筹码大于0的玩家
-        self.player_acted = {position: False for position, player in self.players.items() if player.get("chips", 0) > 0}
+        # 重置玩家是否行动过，只包含活跃且非全下的玩家
+        self.player_acted = {
+            position: False 
+            for position in self.active_players 
+            if not self.players[position].get("is_all_in", False)
+        }
             
         try:
             # 根据当前轮次发放公共牌
@@ -623,31 +667,20 @@ class Game:
             # 设置下一个行动的玩家
             if self.betting_round >= 1:  # flop及之后的轮次
                 # 从庄家位开始查找第一个活跃玩家
-                dealer_position = self.dealer_idx
                 first_player_idx = None
                 
                 # 获取所有活跃玩家，按位置排序
                 sorted_active_players = sorted(self.active_players)
                 
                 if sorted_active_players:
-                    # 找到庄家位在排序后的列表中的索引
-                    try:
-                        dealer_index = sorted_active_players.index(dealer_position)
-                    except ValueError:
-                        # 如果庄家不在活跃玩家中，使用第一个活跃玩家
-                        dealer_index = 0
                         
                     # 从庄家位置后开始循环查找第一个活跃玩家
                     for i in range(1, len(sorted_active_players) + 1):
-                        next_idx = (dealer_index + i) % len(sorted_active_players)
+                        next_idx = (self.dealer_idx + i) % len(sorted_active_players)
                         player_position = sorted_active_players[next_idx]
                         if player_position in self.active_players:
                             first_player_idx = player_position
                             break
-                
-                # 如果没有找到，设置为第一个活跃玩家
-                if first_player_idx is None and self.active_players:
-                    first_player_idx = self.active_players[0]
                 
                 if first_player_idx is not None:
                     self.current_player_idx = first_player_idx
@@ -997,6 +1030,29 @@ class Game:
         self.pot = 0
         self.current_bet = 0
         
+        # 在新一局开始前，检查离线但仍占座的玩家并执行自动离座
+        offline_seated_players = [
+            position for position, player in self.players.items()
+            if not player.get("online", True) and player.get("chips", 0) > 0
+        ]
+        
+        # 对离线但仍占座的玩家执行处理
+        if offline_seated_players:
+            print(f"发现离线玩家，准备处理: {offline_seated_players}")
+            # 找到房间对象
+            from src.models.room import get_room_by_game
+            room = get_room_by_game(self)
+            if room:
+                for position in offline_seated_players:
+                    player_name = self.players[position].get("name")
+                    print(f"离线玩家 {player_name} (位置 {position}) 自动离座")
+                    
+                    # 更新玩家在游戏中的状态
+                    # 不能完全移除玩家数据，只是将状态更新为离线
+                    if position in self.players:
+                        self.players[position]["position"] = None
+                        print(f"已将离线玩家 {player_name} 的位置设置为None")
+        
         # 生成新的手牌ID
         self.handid = str(uuid.uuid4())
         print(f"Starting next hand with handid: {self.handid}")
@@ -1014,7 +1070,7 @@ class Game:
                 self.players[position]['pending_buy_in'] = 0
         
         # Check for active players with chips
-        self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0])
+        self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0 and player["online"]])
         
         if len(self.active_players) <= 1:
             print("Game over: only one player with chips remaining")

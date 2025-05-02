@@ -102,6 +102,26 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             if not reconnect_success:
                 print(f"Reconnection failed for client {client_id}")
                 return
+            
+            # 处理玩家重新连接 - 更新所有房间中该玩家的online状态
+            room_manager_instance = get_instance()
+            rooms = room_manager_instance.get_all_rooms()
+            for room_id, room in rooms.items():
+                if client_id in room.players:
+                    # 使用room对象的player_online_status方法更新玩家状态
+                    room.player_online_status(client_id, True)
+                    
+                    # 广播房间状态更新
+                    await ws_manager.broadcast_to_room(
+                        room_id,
+                        {
+                            "type": "player_reconnected",
+                            "data": {
+                                "player_id": client_id,
+                                "timestamp": time.time()
+                            }
+                        }
+                    )
         else:
             # New connection
             await ws_manager.connect(websocket, client_id)
@@ -195,6 +215,26 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 
             except WebSocketDisconnect:
                 print(f"WebSocket disconnected for client: {client_id}")
+                # 处理玩家断开连接 - 更新所有房间中该玩家的online状态
+                room_manager_instance = get_instance()
+                rooms = room_manager_instance.get_all_rooms()
+                for room_id, room in rooms.items():
+                    if client_id in room.players:
+                        # 使用room对象的player_online_status方法更新玩家状态
+                        room.player_online_status(client_id, False)
+                        
+                        # 广播玩家断开连接通知
+                        await ws_manager.broadcast_to_room(
+                            room_id,
+                            {
+                                "type": "player_disconnected",
+                                "data": {
+                                    "player_id": client_id,
+                                    "timestamp": time.time()
+                                }
+                            }
+                        )
+                
                 ws_manager.disconnect(client_id)
                 break
             except Exception as e:
@@ -205,12 +245,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         print(f"WebSocket disconnected for client: {client_id}")
         ws_manager.disconnect(client_id)
     except Exception as e:
-        print(f"Unexpected error in websocket handling: {str(e)}")
+        print(f"Unhandled error in websocket endpoint: {str(e)}")
         traceback.print_exc()
-        try:
-            ws_manager.disconnect(client_id)
-        except:
-            pass
 
 # Add game-specific WebSocket endpoint, requires token authentication
 @app.websocket("/ws/game/{room_id}")
@@ -251,6 +287,11 @@ async def game_websocket_endpoint(
             if not reconnect_success:
                 print(f"Reconnection failed for client {client_id}")
                 return
+            
+            # 更新玩家在线状态
+            if room:
+                room.player_online_status(username, True)
+                print(f"Game WebSocket: 更新玩家 {username} 的在线状态为True")
         else:
             # New connection
             await ws_manager.connect(websocket, client_id)
@@ -613,6 +654,13 @@ async def game_websocket_endpoint(
                 print(f"WebSocket disconnected for client: {client_id}")
                 ws_manager.disconnect(client_id)
                 
+                # 更新玩家在线状态为false
+                if room_id:
+                    room = room_manager.get_room(room_id)
+                    if room:
+                        room.player_online_status(username, False)
+                        print(f"Game WebSocket: 更新玩家 {username} 的在线状态为False")
+                
                 # Notify others that player has disconnected
                 await ws_manager.broadcast_to_room(
                     room_id,
@@ -634,8 +682,14 @@ async def game_websocket_endpoint(
             print(f"WebSocket disconnected for client: {client_id}")
             ws_manager.disconnect(client_id)
             
-            # Notify others that player has disconnected
+            # 更新玩家在线状态为false
             if room_id:
+                room = room_manager.get_room(room_id)
+                if room:
+                    room.player_online_status(username, False)
+                    print(f"Game WebSocket: 更新玩家 {username} 的在线状态为False")
+            
+                # Notify others that player has disconnected
                 await ws_manager.broadcast_to_room(
                     room_id,
                     {
