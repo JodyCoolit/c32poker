@@ -438,27 +438,6 @@ class RoomManager:
             
         return True
         
-    def end_game(self, room_id):
-        """结束指定房间的游戏并计算结果"""
-        room = self.get_room(room_id)
-        if not room or not room.game:
-            return False
-            
-        # 获取赢家
-        winners = room.game.get_winners()
-        
-        # 分配奖金
-        pot_per_winner = room.game.pot // len(winners) if winners else 0
-        for winner in winners:
-            # 找到赢家对应的玩家对象并增加筹码
-            if winner.name in room.players:
-                room.players[winner.name].chips += pot_per_winner
-        
-        # 清除当前游戏实例
-        room.game = None
-        
-        return True
-        
     def list_rooms(self):
         global GLOBAL_ROOMS
         
@@ -495,22 +474,6 @@ class RoomManager:
             
             return True
         return False
-
-    def get_turn_time_remaining(self):
-        """获取当前玩家回合剩余时间"""
-        # 打印调试信息
-        print(f"DEBUG: get_turn_time_remaining被调用，turn_start_time = {self.turn_start_time}")
-        
-        if not hasattr(self, 'turn_start_time') or self.turn_start_time is None:
-            print(f"DEBUG: turn_start_time为None，返回默认时间{self.player_turn_time}秒")
-            # 如果计时器未启动，返回默认时间
-            return self.player_turn_time
-        
-        # 计算剩余时间
-        elapsed = time.time() - self.turn_start_time
-        remaining = max(0, self.player_turn_time - elapsed)
-        print(f"DEBUG: 计算剩余时间：已用{elapsed:.1f}秒，剩余{remaining:.1f}秒")
-        return round(remaining)
 
     def get_state(self):
         """获取房间状态"""
@@ -558,90 +521,6 @@ class RoomManager:
                 "status": self.status,
                 "error": str(e)
             }
-
-    def add_player(self, username, chips):
-        """添加玩家到房间"""
-        # 检查是否已满
-        if len(self.game.players) >= self.max_players:
-            return False, "房间已满"
-        
-        # 检查玩家是否已在游戏中
-        player_idx = self.game.get_player_idx(username)
-        if player_idx is not None:
-            return False, "已在房间中"
-        
-        # 添加玩家到游戏
-        self.game.add_player(username, chips)
-        
-        # 如果是第一个加入的玩家，设为房主
-        if len(self.game.players) == 1:
-            self.owner = username
-        
-        # 更新最后活动时间
-        self.update_activity_time()
-        
-        return True, "加入成功"
-
-    def player_buy_in(self, username, amount, seat_index):
-        """处理玩家买入操作"""
-        try:
-            print(f"处理买入请求: 玩家={username}, 金额={amount}, 座位={seat_index}")
-            
-            # 验证买入金额
-            if amount < self.buy_in_min:
-                return {"success": False, "message": f"买入金额不能低于 {self.buy_in_min}"}
-            
-            if amount > self.buy_in_max:
-                return {"success": False, "message": f"买入金额不能高于 {self.buy_in_max}"}
-            
-            # 验证座位是否有效
-            if seat_index < 0 or seat_index >= self.max_players:
-                return {"success": False, "message": f"无效的座位号 (0-{self.max_players-1})"}
-            
-            # 检查座位是否已被占用
-            for player in self.game.players:
-                if player.get("position") == seat_index and player["name"] != username:
-                    return {"success": False, "message": f"座位 {seat_index} 已被玩家 {player['name']} 占用"}
-            
-            # 检查玩家是否已在游戏中
-            player_idx = self.game.get_player_idx(username)
-            if player_idx is None:
-                # 添加新玩家到游戏
-                player_idx = self.game.add_player(username, amount, position=seat_index)
-                player = self.game.players[player_idx]
-                total_buy_in = amount
-                
-                print(f"新玩家 {username} 已买入 {amount} 并坐在座位 {seat_index}")
-            else:
-                # 现有玩家买入更多筹码
-                success, player = self.game.player_buy_in(username, amount)
-                if not success:
-                    return {"success": False, "message": "处理买入失败"}
-                
-                # 更新玩家位置
-                player["position"] = seat_index
-                total_buy_in = player["total_buy_in"]
-                
-                print(f"玩家 {username} 已买入 {amount}，总买入: {total_buy_in}，总筹码: {player['chips']}，座位: {seat_index}")
-            
-            # 更新最后活动时间
-            self.update_activity_time()
-            
-            return {
-                "success": True,
-                "message": f"买入成功，总筹码: {player['chips']}",
-                "chips": player["chips"],
-                "total_buy_in": total_buy_in,
-                "seat": seat_index,
-                "position": seat_index
-            }
-            
-        except Exception as e:
-            import traceback
-            print(f"买入操作错误: {str(e)}")
-            traceback.print_exc()
-            return {"success": False, "message": f"处理买入请求时出错: {str(e)}"}
-
 # 全局单例实例 - 确保所有导入都使用相同的实例
 GLOBAL_ROOM_MANAGER = RoomManager()
 

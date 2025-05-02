@@ -4,6 +4,7 @@ class Player:
         self.name = name
         self.chips = chips
         self.total_buy_in = chips  # 新增：记录总买入金额，初始为首次买入量
+        self.pending_buy_in = 0  # 新增：记录待处理买入金额
         self.hole_cards = []
         self.discarded_card = None
         self.position = None  # 明确设置为None，避免自动落座

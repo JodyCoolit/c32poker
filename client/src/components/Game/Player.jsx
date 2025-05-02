@@ -426,8 +426,8 @@ const Player = ({
             {/* Player's cards - moved below the player avatar */}
             {renderHand()}
 
-            {/* Pending chips indicator */}
-            {player.pending_chips > 0 && (
+            {/* Pending buy-in indicator - 只使用pending_buy_in字段 */}
+            {player.pending_buy_in > 0 && (
                 <Box sx={{ 
                     position: 'absolute',
                     top: -5,
@@ -441,7 +441,7 @@ const Player = ({
                     boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                     zIndex: 20
                 }}>
-                    +{player.pending_chips} BB
+                    +{player.pending_buy_in} BB
                 </Box>
             )}
             

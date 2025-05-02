@@ -182,7 +182,8 @@ class Room:
                         "name": player_name, 
                         "chips": player.chips,
                         "position": position,
-                        "total_buy_in": player.total_buy_in if hasattr(player, 'total_buy_in') else player.chips  # 传递总买入信息
+                        "total_buy_in": player.total_buy_in,
+                        "pending_buy_in": player.pending_buy_in
                     })
             
             print(f"Player info list: {players_info}")
@@ -328,59 +329,65 @@ class Room:
             
             # 检查玩家是否已在房间中
             if username not in self.players:
-                # 添加新玩家到房间
-                success, message = self.add_player(username, amount)
-                if not success:
-                    return {"success": False, "message": message}
-                    
-                # 设置玩家座位 - 同时设置seat和position属性
-                self.players[username].seat = seat_index
-                self.players[username].position = seat_index  # 确保position属性也被设置
-                print(f"新玩家 {username} 已买入 {amount} 并坐在座位 {seat_index}，position={seat_index}")
+                # 不自动添加玩家，直接返回失败
+                return {"success": False, "message": "玩家不在房间中，请先加入房间"}
                 
-                # 新玩家的总买入就是初始买入
-                total_buy_in = amount
-            else:
-                # 更新现有玩家的筹码和座位
+            # 现在直接处理已存在的玩家
+            # 不再更新座位信息，由sit_down和change_seat接口处理
+            
+            # 检查玩家是否在当前游戏中活跃
+            is_player_active = False
+            pending_buy_in = False
+            
+            # 如果游戏正在进行，检查玩家是否活跃
+            if self.game and hasattr(self.game, 'active_players'):
+                if seat_index in self.game.active_players:
+                    is_player_active = True
+                    print(f"玩家 {username} 正在游戏中，暂时不能添加筹码，将在游戏结束后更新")
+                    
+                    # 记录玩家的买入意图到game.players中，而不是Player对象
+                    if seat_index in self.game.players:
+                        # 直接累加pending_buy_in，不检查其存在性
+                        self.game.players[seat_index]['pending_buy_in'] += amount
+                        pending_buy_in = True
+                        print(f"记录玩家 {username} 的待处理买入到game.players: {self.game.players[seat_index]['pending_buy_in']}")
+            
+            # 只有当玩家不在活跃游戏中时，才立即更新筹码
+            if not is_player_active:
+                # 立即更新玩家筹码
                 self.players[username].chips += amount
-                self.players[username].seat = seat_index
-                self.players[username].position = seat_index  # 确保position属性也被设置
-                
-                # 累加总买入金额
-                if hasattr(self.players[username], 'total_buy_in'):
-                    self.players[username].total_buy_in += amount
-                else:
-                    # 如果玩家没有total_buy_in属性，则添加一个
-                    self.players[username].total_buy_in = self.players[username].chips
-                
-                total_buy_in = self.players[username].total_buy_in
-                print(f"玩家 {username} 已买入 {amount}，总买入: {total_buy_in}，总筹码: {self.players[username].chips}，座位: {seat_index}，position={seat_index}")
-                
-                # 如果游戏已经开始，也更新game.players中的total_buy_in
-                if self.game and hasattr(self.game, 'players'):
-                    # 查找玩家在game.players中的索引
-                    player_game_idx = None
-                    for idx, player in enumerate(self.game.players):
-                        if isinstance(player, dict) and player.get('name') == username:
-                            player_game_idx = idx
-                            break
-                        elif hasattr(player, 'name') and player.name == username:
-                            player_game_idx = idx
-                            break
+                print(f"玩家 {username} 不在游戏中，立即更新筹码: +{amount}，总计: {self.players[username].chips}")
+            
+            # 直接累加总买入金额（无论是否立即更新筹码）
+            self.players[username].total_buy_in += amount
+            total_buy_in = self.players[username].total_buy_in
+            
+            # 状态消息
+            if pending_buy_in:
+                # 从game.players中获取pending_buy_in的值进行显示
+                pending_amount = self.game.players[seat_index]['pending_buy_in']
+                print(f"玩家 {username} 已记录买入 {amount}，总买入: {total_buy_in}，待处理买入: {pending_amount}，座位: {seat_index}")
+            else:
+                print(f"玩家 {username} 已买入 {amount}，总买入: {total_buy_in}，总筹码: {self.players[username].chips}，座位: {seat_index}")
+            
+            # 如果游戏已经开始，也更新game.players中的total_buy_in（不更新筹码，如果玩家在游戏中）
+            if self.game and hasattr(self.game, 'players'):
+                # 直接通过座位号(position)访问玩家数据，不假设结构类型
+                if seat_index in self.game.players:
+                    # 更新总买入金额（这个总是更新的）
+                    self.game.players[seat_index]['total_buy_in'] = total_buy_in
                     
-                    # 更新game.players中的数据
-                    if player_game_idx is not None:
-                        if isinstance(self.game.players[player_game_idx], dict):
-                            # 更新总买入
-                            self.game.players[player_game_idx]['total_buy_in'] = total_buy_in
-                            # 更新当前筹码
-                            self.game.players[player_game_idx]['chips'] = self.players[username].chips
-                            print(f"已同步更新game对象中玩家 {username} 的总买入信息: {total_buy_in}")
-                        else:
-                            # 如果是对象形式，尝试更新属性
-                            setattr(self.game.players[player_game_idx], 'total_buy_in', total_buy_in)
-                            setattr(self.game.players[player_game_idx], 'chips', self.players[username].chips)
-                            print(f"已同步更新game对象中玩家 {username} 的总买入信息: {total_buy_in}")
+                    # 只有当玩家不在活跃游戏中时，才更新game中的筹码
+                    if not is_player_active:
+                        self.game.players[seat_index]['chips'] += amount
+                        # 将pending_buy_in置为0，而不是删除
+                        self.game.players[seat_index]['pending_buy_in'] = 0
+                        print(f"更新game对象中座位 {seat_index} 玩家 {username} 的筹码和总买入")
+                    else:
+                        print(f"只更新game对象中座位 {seat_index} 玩家 {username} 的总买入，等待游戏结束后处理pending_buy_in: {self.game.players[seat_index].get('pending_buy_in', 0)}")
+                else:
+                    # 如果座位号不存在，这是一个异常情况，只打印警告
+                    print(f"警告: 座位号 {seat_index} 在game.players中不存在，可能是玩家数据结构不一致")
             
             # 更新最后活动时间
             self.update_activity_time()

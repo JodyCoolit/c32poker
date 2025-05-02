@@ -1003,6 +1003,14 @@ class Game:
         # 重置每个玩家的下注金额
         for position in self.players:
             self.players[position]['bet_amount'] = 0
+            
+            # 处理pending_buy_in，更新玩家筹码
+            if self.players[position]['pending_buy_in'] > 0:
+                pending_amount = self.players[position]['pending_buy_in']
+                self.players[position]['chips'] += pending_amount
+                print(f"处理玩家 {self.players[position].get('name')} 在位置 {position} 的待处理买入: {pending_amount}，更新后筹码: {self.players[position]['chips']}")
+                # 重置pending_buy_in为0
+                self.players[position]['pending_buy_in'] = 0
         
         # Check for active players with chips
         self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0])
