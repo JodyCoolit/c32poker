@@ -722,7 +722,8 @@ class Game:
                     "bet_amount": player.get("bet_amount", 0),
                     "folded": position not in self.active_players,
                     "is_current_player": position == self.current_player_idx,
-                    "total_buy_in": player.get("total_buy_in", player.get("chips", 0)),  # 添加总买入字段
+                    "total_buy_in": player.get("total_buy_in", player.get("chips", 0)),
+                    "pending_buy_in": player.get("pending_buy_in", 0)
                 }
                 
                 # 直接从玩家对象获取弃牌状态

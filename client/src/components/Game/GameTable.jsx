@@ -2563,20 +2563,21 @@ const GameTable = () => {
   const preparePlayersForDialog = () => {
     let playerList = [];
     
-    if (gameState.players && Array.isArray(gameState.players)) {
-      playerList = gameState.players;
-    } else if (gameState.game && gameState.game.players && Array.isArray(gameState.game.players)) {
+    // 优先使用game.players
+    if (gameState.game && gameState.game.players && Array.isArray(gameState.game.players)) {
       playerList = gameState.game.players;
+    } else if (gameState.players && Array.isArray(gameState.players)) {
+      playerList = gameState.players;
     }
     
     // 详细调试每个玩家的数据 - 只在特定条件下输出
-    const DEBUG_LOG = false; // 设置为false关闭日志
+    const DEBUG_LOG = true; // 设置为false关闭日志
     
     if (DEBUG_LOG) {
       console.log("====== 调试玩家数据 ======");
       playerList.forEach(player => {
         const playerName = player.name || player.username;
-        console.log(`玩家[${playerName}]原始数据:`, JSON.stringify(player));
+        console.log(`玩家[${playerName}]原始买入数据:`, JSON.stringify(player));
       });
     }
     
@@ -2592,13 +2593,6 @@ const GameTable = () => {
       // 计算玩家初始买入金额和当前筹码，用于计算盈亏
       let initialChips = player.initial_chips || player.initialChips || player.buyIn || 0;
       let currentChips = player.chips || 0;
-      
-      // 如果是当前用户，检查最新状态
-      if ((player.name === currentUser || player.username === currentUser) && currentPlayer) {
-        // 优先使用currentPlayer的最新数据
-        initialChips = currentPlayer.initial_chips || currentPlayer.initialChips || initialChips;
-        currentChips = currentPlayer.chips || currentChips;
-      }
       
       const playerName = player.name || player.username;
       
@@ -2628,7 +2622,7 @@ const GameTable = () => {
                             currentChips));
       
       if (DEBUG_LOG) {
-        console.log(`玩家[${playerName}]处理后: 初始筹码=${initialChips}, 当前筹码=${currentChips}, 原始买入=${originalBuyIn}, 缓存买入=${cachedBuyIn}`);
+        console.log(`玩家[${playerName}]处理后: 初始筹码=${initialChips}, 当前筹码=${currentChips}, 原始买入=${originalBuyIn}, pending买入=${player.pending_buy_in}, 缓存买入=${cachedBuyIn}`);
       }
       
       return {
@@ -2640,6 +2634,8 @@ const GameTable = () => {
         // 添加初始筹码和当前筹码信息，用于计算盈亏
         initialChips: initialChips,
         chips: currentChips,
+        // 确保pending_buy_in被正确传递
+        pending_buy_in: player.pending_buy_in || 0,
         // 添加原始买入金额，此值不随游戏进行而改变，优先使用缓存值
         _original_buy_in: cachedBuyIn !== undefined ? cachedBuyIn : originalBuyIn,
         // 调试信息

@@ -186,6 +186,7 @@ const PlayerListDialog = ({
                 <TableCell align="center">位置</TableCell>
                 <TableCell align="right">买入</TableCell>
                 <TableCell align="right">筹码</TableCell>
+                <TableCell align="right">待处理</TableCell>
                 <TableCell align="right">盈亏</TableCell>
               </TableRow>
             </TableHead>
@@ -254,23 +255,38 @@ const PlayerListDialog = ({
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2" fontWeight="medium">
-                        {displayBuyIn} BB
+                        {displayBuyIn.toFixed(1)} BB
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2" fontWeight="medium">
-                        {currentChips} BB
+                        {currentChips.toFixed(1)} BB
                       </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      {player.pending_buy_in > 0 && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                          <Chip 
+                            label={`+${player.pending_buy_in.toFixed(1)} BB`} 
+                            size="small" 
+                            color="success" 
+                            variant="outlined"
+                            sx={{ fontWeight: 'bold' }}
+                          />
+                        </Box>
+                      )}
                     </TableCell>
                     <TableCell align="right">
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
                         {getProfitIcon(profit)}
                         <Typography 
                           variant="body2" 
-                          fontWeight="medium"
-                          sx={{ color: getProfitColor(profit) }}
+                          sx={{ 
+                            color: getProfitColor(profit),
+                            fontWeight: profit !== 0 ? 'bold' : 'normal'
+                          }}
                         >
-                          {profit > 0 ? '+' : ''}{profit} BB
+                          {profit > 0 ? '+' : ''}{profit.toFixed(1)} BB
                         </Typography>
                       </Box>
                     </TableCell>

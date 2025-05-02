@@ -616,6 +616,7 @@ class Room:
                     player_state = {
                         "name": player.name,
                         "chips": player.chips,
+                        "total_buy_in": player.total_buy_in,
                     }
                     
                     # 添加座位信息
