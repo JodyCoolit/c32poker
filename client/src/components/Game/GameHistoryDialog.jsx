@@ -157,15 +157,17 @@ const GameHistoryDialog = ({
     const rounds = {};
     
     actions.forEach(action => {
-      const round = action.round || 'PRE_FLOP';
-      if (!rounds[round]) {
-        rounds[round] = {
-          round: getRoundDisplayName(round),
+      // 处理轮次值，可能是字符串或数字
+      let roundKey = action.round !== undefined ? action.round.toString() : 'PRE_FLOP';
+      
+      if (!rounds[roundKey]) {
+        rounds[roundKey] = {
+          round: getRoundDisplayName(roundKey),
           actions: []
         };
       }
       
-      rounds[round].actions.push({
+      rounds[roundKey].actions.push({
         player: action.player_name || action.player || 'Unknown',
         action: action.action,
         amount: action.amount
@@ -177,15 +179,25 @@ const GameHistoryDialog = ({
   
   // 获取轮次的显示名称
   const getRoundDisplayName = (round) => {
+    // 将输入统一转为字符串处理
+    const roundStr = round?.toString() || '';
+    
+    // 映射关系，同时处理字符串和数字
     const roundMap = {
-      'PRE_FLOP': '前翻牌圈',
+      'PRE_FLOP': '翻前',
       'FLOP': '翻牌圈',
       'TURN': '转牌圈',
       'RIVER': '河牌圈',
-      'SHOWDOWN': '摊牌'
+      'SHOWDOWN': '摊牌',
+      // 处理数字轮次
+      '0': '翻前',
+      '1': '翻牌圈',
+      '2': '转牌圈',
+      '3': '河牌圈',
+      '4': '摊牌'
     };
     
-    return roundMap[round] || round;
+    return roundMap[roundStr] || `第${roundStr}轮`;
   };
 
   return (
@@ -260,8 +272,8 @@ const GameHistoryDialog = ({
                 
                 {/* 赢家信息 */}
                 {selectedHistory.winners && selectedHistory.winners.length > 0 && (
-                  <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: '#E8F5E9' }}>
-                    <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: '#e8f0e8' }}>
+                    <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#2e7d32' }}>
                       <EmojiEventsIcon color="success" /> 
                       赢家
                     </Typography>
@@ -269,8 +281,8 @@ const GameHistoryDialog = ({
                       {selectedHistory.winners.map((winner, index) => (
                         <ListItem key={index}>
                           <ListItemText 
-                            primary={winner.name} 
-                            secondary={`获得 ${winner.amount || winner.chips || 0} BB`} 
+                            primary={<Typography variant="body1" sx={{ fontWeight: 'medium', color: '#333' }}>{winner.name}</Typography>} 
+                            secondary={<Typography variant="body2" sx={{ color: '#555' }}>获得 {winner.amount || winner.chips || 0} BB</Typography>} 
                           />
                         </ListItem>
                       ))}
@@ -280,7 +292,7 @@ const GameHistoryDialog = ({
                 
                 {/* 玩家信息 */}
                 {selectedHistory.players && selectedHistory.players.length > 0 && (
-                  <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+                  <Paper elevation={2} sx={{ p: 2, mb: 2, bgcolor: '#f8f8f8' }}>
                     <Typography variant="subtitle1" gutterBottom>
                       参与玩家
                     </Typography>
@@ -288,8 +300,8 @@ const GameHistoryDialog = ({
                       {selectedHistory.players.map((player, index) => (
                         <ListItem key={index}>
                           <ListItemText 
-                            primary={player.name} 
-                            secondary={`位置: ${player.position}, 初始筹码: ${player.chips_start || player.initial_chips || 0} BB, 结束筹码: ${player.chips_end || player.chips || 0} BB`} 
+                            primary={<Typography variant="body1" sx={{ fontWeight: 'medium', color: '#333' }}>{player.name}</Typography>} 
+                            secondary={<Typography variant="body2" sx={{ color: '#555' }}>位置: {player.position}, 初始筹码: {player.chips_start || player.initial_chips || 0} BB, 结束筹码: {player.chips_end || player.chips || 0} BB</Typography>} 
                           />
                         </ListItem>
                       ))}
@@ -311,23 +323,25 @@ const GameHistoryDialog = ({
                         <ListItem 
                           button 
                           onClick={() => toggleExpand(`${tabValue}-${index}`)}
-                          sx={{ bgcolor: '#f5f5f5', mb: 1 }}
+                          sx={{ bgcolor: '#e0e0e0', mb: 1, borderRadius: '4px' }}
                         >
-                          <ListItemText primary={roundName} />
+                          <ListItemText 
+                            primary={<Typography variant="body1" sx={{ fontWeight: 'medium', color: '#333' }}>{roundName}</Typography>} 
+                          />
                           <IconButton edge="end">
                             {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                           </IconButton>
                         </ListItem>
                         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                          <List component="div" disablePadding>
+                          <List component="div" disablePadding sx={{ bgcolor: '#f5f5f5', borderRadius: '4px', mb: 2 }}>
                             {actionGroup.actions && actionGroup.actions.map((action, actionIndex) => (
                               <ListItem key={actionIndex} sx={{ pl: 4 }}>
                                 <ListItemIcon>
                                   {getActionIcon(action.action)}
                                 </ListItemIcon>
                                 <ListItemText 
-                                  primary={action.player} 
-                                  secondary={`${getActionName(action.action)}${action.amount ? ` ${action.amount} BB` : ''}`} 
+                                  primary={<Typography variant="body1" sx={{ fontWeight: 'medium', color: '#333' }}>{action.player}</Typography>} 
+                                  secondary={<Typography variant="body2" sx={{ color: '#555' }}>{getActionName(action.action)}{action.amount ? ` ${action.amount} BB` : ''}</Typography>} 
                                 />
                               </ListItem>
                             ))}

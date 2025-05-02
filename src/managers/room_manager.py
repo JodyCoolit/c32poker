@@ -496,26 +496,6 @@ class RoomManager:
             return True
         return False
 
-    def start_turn_timer(self):
-        """Start timer for current player's turn"""
-        # 取消现有计时器
-        if hasattr(self, 'turn_timer') and self.turn_timer:
-            self.turn_timer.cancel()
-        
-        # 设置计时器开始时间
-        print(f"启动计时器，当前玩家: {self.current_player}")
-        self.turn_start_time = time.time()
-        print(f"turn_start_time设置为: {self.turn_start_time}")
-        
-        # 创建新计时器
-        try:
-            self.turn_timer = threading.Timer(self.player_turn_time, self.handle_timeout)
-            self.turn_timer.daemon = True
-            self.turn_timer.start()
-            print(f"计时器启动成功，{self.player_turn_time}秒后超时")
-        except Exception as e:
-            print(f"启动计时器失败: {e}")
-
     def get_turn_time_remaining(self):
         """获取当前玩家回合剩余时间"""
         # 打印调试信息
@@ -531,15 +511,6 @@ class RoomManager:
         remaining = max(0, self.player_turn_time - elapsed)
         print(f"DEBUG: 计算剩余时间：已用{elapsed:.1f}秒，剩余{remaining:.1f}秒")
         return round(remaining)
-
-    def handle_timeout(self):
-        """Handle case when player's turn timer expires"""
-        print(f"DEBUG: 计时器超时触发 - 玩家 {self.current_player} (索引 {self.current_player_idx})")
-        
-        player_idx = self.current_player_idx
-        if player_idx in self.active_players:
-            print(f"DEBUG: 处理超时动作 - 玩家 {self.current_player}")
-            # ... 处理超时的代码 ...
 
     def get_state(self):
         """获取房间状态"""

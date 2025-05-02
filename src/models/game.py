@@ -794,6 +794,12 @@ class Game:
     def handle_timeout(self):
         """Handle case when player's turn timer expires"""
         player_idx = self.current_player_idx
+        action_taken = None
+        player = self.players[player_idx]
+        player_name = player.get("name", f"Player {player_idx}")
+
+        from src.models.room import get_room_by_game
+        
         if player_idx in self.active_players:
             player = self.players[player_idx]
             
@@ -804,7 +810,7 @@ class Game:
                 
                 # 使用handle_action来处理超时弃牌
                 self.current_player_idx = player_idx  # 确保当前玩家设置正确
-                self.handle_action("discard", discard_index)  # 使用discard_index作为amount参数
+                discard_result = self.handle_discard(player_idx, discard_index)
                 
                 # Add timeout to action history
                 self.action_history.append({
@@ -814,25 +820,109 @@ class Game:
                     "discard_index": discard_index,
                     "timestamp": time.time()
                 })
-                return
+                
+                # 立即广播弃牌操作，确保前端更新玩家的牌
+                room = get_room_by_game(self)
+                if room:
+                    updated_state = room.get_state()
+                    
+                    # 创建弃牌广播消息
+                    discard_broadcast = {
+                        "type": "game_update",
+                        "data": {
+                            "action": "discard",
+                            "player": player_name,
+                            "amount": discard_index,  # 弃牌索引作为金额
+                            "result": {"success": True, "message": f"Player timeout, automatic discard card at index {discard_index}"},
+                            "game_state": updated_state,
+                            "is_key_update": True,
+                            "timestamp": time.time(),
+                            "update_reason": "player_timeout_discard"
+                        }
+                    }
+                    
+                    # 广播弃牌操作
+                    try:
+                        loop = asyncio.get_event_loop()
+                        loop.create_task(ws_manager.broadcast_to_room(room.room_id, discard_broadcast))
+                        print(f"[BROADCAST][game_update]: Timeout discard, Player={player_name}, Index={discard_index}")
+                    except Exception as e:
+                        print(f"Error broadcasting timeout discard: {str(e)}")
             
             # Default action is to fold if bet is required, check if possible
             if self.current_bet > self.players[player_idx]["bet_amount"]:
                 # Player needs to call/raise, but timer expired - fold
                 self.current_player_idx = player_idx  # 确保当前玩家设置正确
-                self.handle_action("fold", 0)
+                result = self.handle_action("fold", 0)
+                action_taken = "fold"
+                
+                # 如果handle_action没有处理游戏流程(例如出现错误)，则手动处理
+                if not result.get("success", False):
+                    # 标记玩家为已行动
+                    self.player_acted[player_idx] = True
+                    
+                    # 手动将玩家从活跃列表中移除(弃牌)
+                    if player_idx in self.active_players:
+                        self.active_players.remove(player_idx)
+                    
+                    # 检查是否只剩一个玩家，如果是则结束游戏
+                    if len(self.active_players) == 1:
+                        self.finish_hand()
             else:
                 # Player can check
                 self.current_player_idx = player_idx  # 确保当前玩家设置正确
-                self.handle_action("check", 0)
+                result = self.handle_action("check", 0)
+                action_taken = "check"
+                
+                # 如果handle_action没有处理游戏流程，则手动处理
+                if not result.get("success", False):
+                    # 标记玩家为已行动
+                    self.player_acted[player_idx] = True
+        
+        # Add timeout to action history
+        self.action_history.append({
+            "round": self.betting_round,
+            "player_idx": player_idx,
+            "action": "timeout",
+            "timestamp": time.time()
+        })
+
+        # 检查是否所有玩家都已行动，如果是则进入下一轮
+        if self.check_all_players_acted():
+            self.advance_betting_round()
+        else:
+            # 移动到下一个玩家
+            self.advance_player()
+
+        # 广播常规操作(fold/check)
+        # 获取关联的房间
+        room = get_room_by_game(self)
+        if room and action_taken:
+            # 获取更新后的游戏状态
+            updated_state = room.get_state()
             
-            # Add timeout to action history
-            self.action_history.append({
-                "round": self.betting_round,
-                "player_idx": player_idx,
-                "action": "timeout",
-                "timestamp": time.time()
-            })
+            # 创建广播消息
+            broadcast_message = {
+                "type": "game_update",
+                "data": {
+                    "action": action_taken,  # 使用实际执行的动作
+                    "player": player_name,
+                    "amount": 0,
+                    "result": {"success": True, "message": f"Player timeout, automatic {action_taken}"},
+                    "game_state": updated_state,
+                    "is_key_update": True,
+                    "timestamp": time.time(),
+                    "update_reason": f"player_timeout_{action_taken}"
+                }
+            }
+            
+            # 使用异步方式广播消息
+            try:
+                loop = asyncio.get_event_loop()
+                loop.create_task(ws_manager.broadcast_to_room(room.room_id, broadcast_message))
+                print(f"[BROADCAST][game_update]: Timeout action={action_taken}, Player={player_name}")
+            except Exception as e:
+                print(f"Error broadcasting timeout action: {str(e)}")
     
     def cancel_turn_timer(self):
         """Cancel the current turn timer"""
@@ -872,10 +962,6 @@ class Game:
             
             # End the game in the room
             room.end_game()
-            
-            # Broadcast game end event
-            import asyncio
-            from src.websocket_manager import ws_manager
             
             # Create a game end message
             game_end_message = {
@@ -1340,15 +1426,27 @@ class Game:
             
             # 添加赢家信息
             if hasattr(self, 'hand_winners') and self.hand_winners:
+                # 从action_history中找出win类型的动作，获取获胜金额
+                winners_amounts = {}
+                for action in self.action_history:
+                    if action.get('action') in ['win', 'win_by_default'] and 'amount' in action:
+                        player_id = action.get('player_idx', action.get('player'))
+                        if player_id is not None:
+                            winners_amounts[player_id] = action.get('amount', 0)
+                
                 for winner_idx in self.hand_winners:
                     winner_info = self.players.get(winner_idx, {})
                     winner_name = ""
                     if isinstance(winner_info, dict):
                         winner_name = winner_info.get("name", f"玩家{winner_idx}")
                     
+                    # 获取获胜金额，如果找不到则为0
+                    amount = winners_amounts.get(winner_idx, 0)
+                    
                     game_record["winners"].append({
                         "name": winner_name,
-                        "position": winner_idx
+                        "position": winner_idx,
+                        "amount": amount  # 添加获胜金额
                     })
             
             # 复制并处理行动历史记录

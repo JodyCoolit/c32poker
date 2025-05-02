@@ -16,6 +16,7 @@ import BlindsDisplay from './BlindsDisplay';
 import RaiseDialog from './RaiseDialog';
 import GameHistoryDialog from './GameHistoryDialog';
 import PlayerListDialog from './PlayerListDialog';
+import ChatBox from './ChatBox';
 import { gameService, roomService } from '../../services/api';
 import websocketService from '../../services/websocket';
 import { toast } from 'react-hot-toast';
@@ -3286,6 +3287,9 @@ const GameTable = () => {
         onAnimationComplete={handleDistributionAnimationComplete}
         playerPositions={playerPositions}
       />
+      
+      {/* Add the ChatBox component */}
+      <ChatBox roomId={roomId} />
     </GameTableContainer>
         );
 };

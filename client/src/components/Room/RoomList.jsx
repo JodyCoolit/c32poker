@@ -62,7 +62,7 @@ const RoomList = () => {
         message: '',
         severity: 'info'
     });
-    const [sortOption, setSortOption] = useState('status'); // Default sort: status (waiting rooms first)
+    const [sortOption, setSortOption] = useState('creation_time'); // Default sort: creation_time (newest first)
     const [refreshing, setRefreshing] = useState(false);
 
     // 获取房间列表
@@ -138,6 +138,14 @@ const RoomList = () => {
             case 'name':
                 // Sort alphabetically by room name
                 return roomsCopy.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            case 'creation_time':
+                // Sort by creation time (descending - newest first)
+                return roomsCopy.sort((a, b) => {
+                    // Use created_at field if available, otherwise use creation_time
+                    const aTime = a.created_at || a.creation_time || 0;
+                    const bTime = b.created_at || b.creation_time || 0;
+                    return bTime - aTime; // Descending order
+                });
             default:
                 return roomsCopy;
         }
@@ -360,6 +368,13 @@ const RoomList = () => {
             <Box sx={{ display: 'flex', mb: 2, gap: 1, alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Typography variant="body2" sx={{ mr: 1 }}>排序方式:</Typography>
+                    <Chip 
+                        label="创建时间" 
+                        onClick={() => handleSortChange('creation_time')}
+                        color={sortOption === 'creation_time' ? 'primary' : 'default'}
+                        size="small"
+                        variant={sortOption === 'creation_time' ? 'filled' : 'outlined'}
+                    />
                     <Chip 
                         label="状态" 
                         onClick={() => handleSortChange('status')}
