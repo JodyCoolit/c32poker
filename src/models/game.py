@@ -39,6 +39,10 @@ class Game:
             self.big_blind = big_blind if big_blind is not None else 1
             self.player_turn_time = player_turn_time
             
+            # 记录游戏开始时的玩家数量，用于决定行动顺序规则
+            self.initial_player_count = len(players_info)
+            print(f"游戏开始时的玩家数量: {self.initial_player_count}")
+            
             # 初始化数据结构
             self.players = {}
             for player_info in players_info:
@@ -320,9 +324,13 @@ class Game:
             
             if action == "fold":
                 # 弃牌操作
+                # 先获取当前玩家在活跃玩家列表中的索引，以便稍后使用
+                current_idx = self.active_players.index(self.current_player_idx)
+                print(f"玩家 {player_name} 选择弃牌，当前索引: {current_idx}")
+                
+                # 现在从活跃玩家列表中移除当前玩家
                 self.active_players.remove(self.current_player_idx)
                 self.player_acted[self.current_player_idx] = True
-                print(f"玩家 {player_name} 选择弃牌")
                 
                 # 检查是否只剩一个玩家
                 if len(self.active_players) == 1:
@@ -331,7 +339,7 @@ class Game:
             
             elif action == "check":
                 # 让牌操作，只有在没有人下注时才能让牌
-                if self.current_bet > 0 and current_player["bet_amount"] < self.current_bet:
+                if self.current_bet > 0 and current_player.get("bet_amount", 0) < self.current_bet:
                     print(f"当前有玩家已下注 {self.current_bet}，不能让牌")
                     return {"success": False, "message": f"当前有玩家已下注 {self.current_bet}，不能让牌"}
                 
@@ -340,7 +348,7 @@ class Game:
             
             elif action == "call":
                 # 跟注操作
-                call_amount = self.current_bet - current_player["bet_amount"]
+                call_amount = self.current_bet - current_player.get("bet_amount", 0)
                 
                 if call_amount <= 0:
                     print("不需要跟注，使用让牌操作")
@@ -430,13 +438,29 @@ class Game:
                 self.finish_hand()
                 return {"success": True, "message": "所有玩家都已全下，进入摊牌阶段"}
             
+            # 检查当前玩家是否是最后一个需要行动的玩家
+            # 在加注后，只有一位玩家需要行动的情况下
+            print(f"\n当前活跃玩家: {self.active_players}")
+            print(f"当前下注金额: {self.current_bet}")
+            print(f"已经行动玩家: {[pos for pos in self.active_players if self.player_acted.get(pos, False)]}")
+            print(f"未行动玩家: {[pos for pos in self.active_players if not self.player_acted.get(pos, False)]}")
+            
             # 检查是否所有玩家都行动过了
             if self.check_all_players_acted():
+                print("所有玩家都已经行动过，准备进入下一轮")
                 # 所有玩家都行动过，进入下一轮
                 self.advance_betting_round()
             else:
+                need_action_players = [pos for pos in self.active_players if not self.player_acted.get(pos, False) and not self.players[pos].get("is_all_in", False)]
+                print(f"需要行动的玩家: {need_action_players}")
+                
                 # 移动到下一个玩家
-                self.advance_player()
+                if action == "fold":
+                    # 如果是弃牌操作，使用之前保存的索引
+                    self.advance_player(current_idx)
+                else:
+                    # 其他操作正常调用
+                    self.advance_player()
             
             return {"success": True, "message": f"成功执行{action}操作"}
         except Exception as e:
@@ -568,7 +592,7 @@ class Game:
             print(f"Deal river error: {e}")
             traceback.print_exc()
         
-    def advance_player(self):
+    def advance_player(self, current_idx=None):
         try:
             # 如果没有活跃玩家，返回
             if not self.active_players:
@@ -576,7 +600,8 @@ class Game:
                 return
                 
             # 找到当前玩家在活跃玩家列表中的索引
-            current_idx = self.active_players.index(self.current_player_idx)
+            if current_idx is None:
+                current_idx = self.active_players.index(self.current_player_idx)
             
             # 找到下一个非全下的活跃玩家
             next_player_found = False
@@ -616,20 +641,33 @@ class Game:
             # 出错时不改变任何状态
         
     def check_all_players_acted(self):
+        """检查是否所有玩家都已经行动过
+        
+        Returns:
+            bool: 如果所有玩家都已行动过，则返回True
+        """
+        print("检查是否所有活跃玩家都已行动：")
         for player_idx in self.active_players:
             # 跳过已经全下的玩家
             if self.players[player_idx].get("is_all_in", False):
+                print(f"  玩家 {player_idx} 已全下，跳过检查")
                 continue
                 
             if not self.player_acted.get(player_idx, False):
+                print(f"  玩家 {player_idx} 尚未行动，返回False")
                 return False
+            else:
+                print(f"  玩家 {player_idx} 已经行动过")
+        
+        # 如果遍历完所有活跃玩家都已行动，或者被跳过(全下)，则返回True
+        print("  所有玩家都已行动，返回True")
         return True
         
     def advance_betting_round(self):
         """
         进入下一个下注轮，将当前下注轮的筹码移入底池，并根据轮次发牌
         """
-        print(f"进入下一轮，当前轮： {self.betting_round}")
+        print(f"\n==== 进入下一轮，当前轮： {self.betting_round} ====")
         
         # 将所有玩家的当前下注加到底池
         self.pot += self.get_total_bets()
@@ -666,40 +704,81 @@ class Game:
             
             # 设置下一个行动的玩家
             if self.betting_round >= 1:  # flop及之后的轮次
-                # 从庄家位开始查找第一个活跃玩家
-                first_player_idx = None
-                
+                print("\n---- 设置翻牌圈及之后轮次的第一个行动玩家 ----")
                 # 获取所有活跃玩家，按位置排序
                 sorted_active_players = sorted(self.active_players)
+                print(f"当前活跃玩家列表(按位置排序): {sorted_active_players}")
+                print(f"当前庄家位置: {self.dealer_idx}")
+                print(f"游戏开始时的玩家数量: {self.initial_player_count}")
                 
+                # 打印所有玩家的信息，便于调试
+                print("\n当前所有玩家信息:")
+                for pos, player in self.players.items():
+                    player_name = player.get('name', f'Player_{pos}')
+                    is_active = pos in self.active_players
+                    is_dealer = pos == self.dealer_idx
+                    print(f"  位置:{pos}, 玩家:{player_name}, 是否活跃:{is_active}, 是否庄家:{is_dealer}, 筹码:{player.get('chips', 0)}")
+                
+                # 如果有活跃玩家
                 if sorted_active_players:
+                    # 查找小盲位置的索引
+                    # 使用初始玩家数量来决定行动顺序规则，而不是当前活跃玩家数量
+                    small_blind_idx = None
+                    if self.initial_player_count == 2:
+                        small_blind_idx = self.dealer_idx
+                        print(f"两人游戏(初始): 小盲位置 = 庄家位置 = {small_blind_idx}")
+                    else:
+                        # 三人或更多玩家时，小盲是庄家后一位
+                        print(f"三人或更多玩家游戏(初始)，准备寻找庄家后的第一个活跃玩家作为小盲位置")
                         
-                    # 从庄家位置后开始循环查找第一个活跃玩家
-                    for i in range(1, len(sorted_active_players) + 1):
-                        next_idx = (self.dealer_idx + i) % len(sorted_active_players)
-                        player_position = sorted_active_players[next_idx]
-                        if player_position in self.active_players:
-                            first_player_idx = player_position
-                            break
-                
-                if first_player_idx is not None:
-                    self.current_player_idx = first_player_idx
-                    print(f"庄家位置后的第一个活跃玩家 {self.players[first_player_idx]['name']} (位置 {first_player_idx}) 将首先行动")
+                        # 获取所有位置，不仅仅是活跃的
+                        all_positions = sorted(self.players.keys())
+                        print(f"所有座位位置(按顺序): {all_positions}")
+                        
+                        if self.dealer_idx in all_positions:
+                            # 找到庄家在所有位置中的索引
+                            dealer_pos_in_all = all_positions.index(self.dealer_idx)
+                            print(f"庄家位置 {self.dealer_idx} 在所有位置中的索引: {dealer_pos_in_all}")
+                            
+                            # 从庄家位置之后开始循环查找第一个活跃玩家
+                            print(f"开始从庄家位置之后查找第一个活跃玩家...")
+                            for i in range(1, len(all_positions) + 1):
+                                next_pos = (dealer_pos_in_all + i) % len(all_positions)
+                                candidate = all_positions[next_pos]
+                                print(f"  检查位置: {candidate} (索引 {next_pos})")
+                                if candidate in sorted_active_players:
+                                    small_blind_idx = candidate
+                                    print(f"  找到小盲位置: {small_blind_idx}, 玩家: {self.players[small_blind_idx]['name']}")
+                                    break
+                            else:
+                                print(f"警告: 无法找到庄家之后的活跃玩家作为小盲")
+                        else:
+                            print(f"警告: 庄家位置 {self.dealer_idx} 不存在于所有位置列表中")
+                    
+                    # 设置第一个行动的玩家
+                    self.current_player_idx = small_blind_idx
+                    
+                    if small_blind_idx is not None:
+                        player_name = self.players[small_blind_idx].get('name', f'Player_{small_blind_idx}')
+                        print(f"小盲位置或之后的第一个活跃玩家 {player_name} (位置 {small_blind_idx}) 将首先行动")
+                    else:
+                        print("警告: small_blind_idx 是 None，无法设置第一个行动的玩家")
                 else:
                     print("警告: 没有活跃玩家可以行动")
-            else:  # preflop轮
-                # preflop轮使用默认的advance_player方法
-                self.advance_player()
             
             # 如果设置了current_player_idx，同时更新current_player
             if self.current_player_idx in self.players:
                 self.current_player = self.players[self.current_player_idx]["name"]
+                print(f"已设置当前玩家为: {self.current_player} (位置 {self.current_player_idx})")
                 # 启动新玩家的计时器
                 self.start_turn_timer()
+            else:
+                print(f"警告: 当前玩家索引 {self.current_player_idx} 不存在于玩家字典中")
                 
             # 打印当前状态
-            print(f"进入{self.betting_round}轮, 当前玩家索引: {self.current_player_idx}, 底池: {self.pot}")
+            print(f"\n进入{self.betting_round}轮, 当前玩家索引: {self.current_player_idx}, 底池: {self.pot}")
             print(f"公共牌: {[str(card) for card in self.community_cards]}")
+            print("==== advance_betting_round 完成 ====\n")
             
         except Exception as e:
             print(f"Advance betting round error: {e}")
@@ -831,6 +910,7 @@ class Game:
         action_taken = None
         player = self.players[player_idx]
         player_name = player.get("name", f"Player {player_idx}")
+        current_idx = None
 
         from src.models.room import get_room_by_game
         
@@ -879,17 +959,17 @@ class Game:
                     try:
                         loop = asyncio.get_event_loop()
                         loop.create_task(ws_manager.broadcast_to_room(room.room_id, discard_broadcast))
-                        print(f"[BROADCAST][game_update]: Timeout discard, Player={player_name}, Index={discard_index}")
+                        # print(f"[BROADCAST][game_update]: Timeout discard, Player={player_name}, Index={discard_index}")
                     except Exception as e:
                         print(f"Error broadcasting timeout discard: {str(e)}")
             
             # Default action is to fold if bet is required, check if possible
-            if self.current_bet > self.players[player_idx]["bet_amount"]:
+            if self.current_bet > self.players[player_idx].get("bet_amount", 0):
                 # Player needs to call/raise, but timer expired - fold
                 self.current_player_idx = player_idx  # 确保当前玩家设置正确
+                current_idx = self.active_players.index(self.current_player_idx)
                 result = self.handle_action("fold", 0)
                 action_taken = "fold"
-                
                 # 如果handle_action没有处理游戏流程(例如出现错误)，则手动处理
                 if not result.get("success", False):
                     # 标记玩家为已行动
@@ -926,7 +1006,12 @@ class Game:
             self.advance_betting_round()
         else:
             # 移动到下一个玩家
-            self.advance_player()
+            if action_taken == "fold":
+                # 如果是弃牌操作，使用之前保存的索引
+                self.advance_player(current_idx)
+            else:
+                # 其他操作正常调用
+                self.advance_player()
 
         # 广播常规操作(fold/check)
         # 获取关联的房间
@@ -954,7 +1039,7 @@ class Game:
             try:
                 loop = asyncio.get_event_loop()
                 loop.create_task(ws_manager.broadcast_to_room(room.room_id, broadcast_message))
-                print(f"[BROADCAST][game_update]: Timeout action={action_taken}, Player={player_name}")
+                # print(f"[BROADCAST][game_update]: Timeout action={action_taken}, Player={player_name}")
             except Exception as e:
                 print(f"Error broadcasting timeout action: {str(e)}")
     
@@ -1072,8 +1157,19 @@ class Game:
         # Check for active players with chips
         self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0 and player["online"]])
         
+        # 更新初始玩家数量，确保新一手牌使用正确的行动顺序规则
+        self.initial_player_count = len(self.active_players)
+        print(f"新一手牌的初始玩家数量: {self.initial_player_count}")
+        
         if len(self.active_players) <= 1:
-            print("Game over: only one player with chips remaining")
+            print("Game paused: only one player with chips remaining")
+            # 找到关联的房间对象
+            from src.models.room import get_room_by_game
+            room = get_room_by_game(self)
+            if room:
+                # 将房间状态设置为 paused
+                room.status = "paused"
+                print(f"房间 {room.room_id} 状态设置为 paused - 等待更多玩家加入")
             return
         
         # Move dealer button - 修正dealer位置计算
@@ -1638,7 +1734,7 @@ async def timer_update_task():
                         # 获取完整的游戏状态
                         game_state = room.get_state()
                         
-                        print(f"[BROADCAST][game_update] Room {room_id}: Sending update. Reason: {change_reason}")
+                        # print(f"[BROADCAST][game_update] Room {room_id}: Sending update. Reason: {change_reason}")
                         
                         # 发送游戏状态更新
                         await ws_manager.broadcast_to_room(room_id, {

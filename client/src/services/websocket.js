@@ -28,6 +28,8 @@ class WebSocketService {
         this.pendingMessages = new Map();
         this.debounceTimers = {};
         this.updateQueue = {};
+        // 添加intentionalDisconnect标志，表示用户是否主动断开连接
+        this.intentionalDisconnect = false;
     }
 
     // Generate a simple hash from game state to detect relevant changes
@@ -350,15 +352,52 @@ class WebSocketService {
         }
     }
 
-    disconnect() {
+    disconnect(intentional = false) {
         this._stopHeartbeat();
         
-        if (this.socket) {
-            console.log('Closing WebSocket connection');
-            this.socket.close();
-            this.socket = null;
-            this.isConnected = false;
-        }
+        // 设置intentionalDisconnect标志
+        this.intentionalDisconnect = intentional;
+        
+        // 创建一个Promise，允许调用者等待连接真正关闭
+        return new Promise((resolve) => {
+            if (this.socket) {
+                console.log('正在关闭WebSocket连接，intentional =', intentional);
+                
+                // 添加onclose事件监听器
+                const onClose = () => {
+                    console.log('WebSocket连接已关闭');
+                    this.socket = null;
+                    this.isConnected = false;
+                    // 通知连接已关闭
+                    this._notifyListeners('disconnect', { intentional });
+                    resolve(true);
+                };
+                
+                // 设置一次性的onclose处理器
+                if (this.socket.readyState !== WebSocket.CLOSED) {
+                    this.socket.onclose = onClose;
+                    this.socket.close();
+                } else {
+                    // 如果已经关闭，直接调用onClose
+                    onClose();
+                }
+                
+                // 设置超时，确保总是会resolve
+                setTimeout(() => {
+                    if (this.isConnected) {
+                        console.log('WebSocket关闭超时，强制断开');
+                        this.socket = null;
+                        this.isConnected = false;
+                        this._notifyListeners('disconnect', { intentional });
+                        resolve(true);
+                    }
+                }, 1000);
+            } else {
+                console.log('WebSocket已经断开连接');
+                this.isConnected = false;
+                resolve(true);
+            }
+        });
     }
 
     _startHeartbeat() {
@@ -380,25 +419,31 @@ class WebSocketService {
     }
 
     _attemptReconnect(roomId) {
+        // 如果是用户主动断开连接，不进行重连
+        if (this.intentionalDisconnect) {
+            console.log('用户主动断开连接，不进行重连');
+            return;
+        }
+        
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.log(`Maximum reconnect attempts (${this.maxReconnectAttempts}) reached, giving up`);
+            console.log(`达到最大重连次数(${this.maxReconnectAttempts})，放弃连接`);
             this._notifyListeners('error', { message: '达到最大重连次数，放弃连接' });
             return;
         }
 
         this.reconnectAttempts++;
         
-        console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+        console.log(`尝试重连(${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
         
-        // Clear any existing timeout
+        // 清除任何现有的超时
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
         }
         
-        // Set timeout for reconnection
+        // 设置重连超时
         this.reconnectTimer = setTimeout(() => {
-            if (!this.isConnected) {
-                console.log(`Reconnecting to room ${roomId}...`);
+            if (!this.isConnected && !this.intentionalDisconnect) {
+                console.log(`重新连接到房间 ${roomId}...`);
                 this.connect(roomId);
             }
         }, this.reconnectTimeout * Math.min(this.reconnectAttempts, 3));

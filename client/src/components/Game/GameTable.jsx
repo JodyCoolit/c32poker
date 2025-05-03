@@ -1215,46 +1215,47 @@ const GameTable = () => {
     
     try {
       setLoading(true);
-      console.log('请求退出游戏...');
+      console.log('开始退出游戏流程...');
+      
+      // 创建一个变量跟踪是否成功发送了退出请求
+      let exitRequestSent = false;
       
       // 检查WebSocket连接状态
-      if (!websocketService.isConnected) {
-        console.warn('WebSocket未连接，尝试重新连接...');
-        // 尝试重新连接
-        try {
-          await gameService.connectToGameRoom(roomId);
-          console.log('WebSocket重新连接成功，继续退出游戏操作');
-        } catch (connectError) {
-          console.error('WebSocket重新连接失败，直接导航回房间列表:', connectError);
-          toast.warning('无法与游戏服务器通信，将退出游戏...');
-          
-          // 延迟导航回房间列表页
-          setTimeout(() => {
-            navigate('/rooms');
-          }, 1000);
-          return;
-        }
-      }
-      
-      // 使用gameService通过WebSocket发送退出游戏请求
-      try {
-        await gameService.exitGame(roomId);
-        console.log('退出游戏请求已发送');
-        toast.success('已成功退出游戏');
-      } catch (exitError) {
-        console.error('发送退出游戏请求失败:', exitError);
-        toast.warning('无法发送退出请求，但仍将退出游戏');
-      }
-      
-      // 关闭任何现有的WebSocket连接
       if (websocketService.isConnected) {
-        websocketService.disconnect();
+        console.log('WebSocket已连接，发送退出游戏请求');
+        
+        try {
+          // 使用gameService通过WebSocket发送退出游戏请求
+          await gameService.exitGame(roomId);
+          console.log('退出游戏请求已发送');
+          exitRequestSent = true;
+          toast.success('已成功退出游戏');
+        } catch (exitError) {
+          console.error('发送退出游戏请求失败:', exitError);
+          toast.warning('无法发送退出请求，但仍将退出游戏');
+        }
+        
+        // 主动关闭WebSocket连接，等待连接关闭
+        console.log('主动关闭WebSocket连接...');
+        try {
+          // 传入true表示这是一个主动断开连接
+          await websocketService.disconnect(true);
+          console.log('WebSocket连接已成功关闭');
+        } catch (disconnectError) {
+          console.error('关闭WebSocket连接失败:', disconnectError);
+        }
+      } else {
+        console.log('WebSocket未连接，无需发送退出请求或关闭连接');
       }
       
-      // 无论成功与否，都导航回房间列表页
+      // 移除在localStorage中标记已退出此房间的逻辑
+      
+      // 等待一小段时间确保所有清理工作完成
+      console.log('退出流程完成，准备导航回房间列表');
       setTimeout(() => {
+        setLoading(false);
         navigate('/rooms');
-      }, 1000);
+      }, 500);
       
     } catch (error) {
       console.error('退出游戏过程中出错:', error);
@@ -1262,10 +1263,9 @@ const GameTable = () => {
       
       // 即使出错，也尝试导航回房间列表
       setTimeout(() => {
+        setLoading(false);
         navigate('/rooms');
-      }, 1000);
-    } finally {
-      setLoading(false);
+      }, 500);
     }
   };
   

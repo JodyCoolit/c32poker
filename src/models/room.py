@@ -184,7 +184,8 @@ class Room:
                         "position": position,
                         "total_buy_in": player.total_buy_in,
                         "pending_buy_in": player.pending_buy_in,
-                        "online": True
+                        "online": True,
+                        "bet_amount": 0
                     })
             
             print(f"Player info list: {players_info}")
@@ -474,6 +475,20 @@ class Room:
             self.update_activity_time()
             
             print(f"玩家 {username} 已入座在座位 {seat_index}，同时设置position={seat_index}")
+            
+            # 玩家入座成功后
+            if True:
+                # 检查是否处于暂停状态
+                if self.status == "paused":
+                    # 检查活跃玩家数量是否足够重启游戏
+                    active_players_count = len([p for p in self.players.values() if p is not None])
+                    if active_players_count >= 2:  # 至少需要2名玩家
+                        print(f"玩家 {username} 入座后，房间有足够玩家，从暂停状态恢复游戏")
+                        # 将状态设回 playing
+                        self.status = "playing"
+                        # 调用游戏的 schedule_next_hand 方法安排新的一手牌
+                        if self.game:
+                            self.game.schedule_next_hand()
             
             return {
                 "success": True,

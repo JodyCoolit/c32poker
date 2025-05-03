@@ -401,7 +401,7 @@ async def game_websocket_endpoint(
                             updated_state = room.get_state()
                             
                             # 添加调试日志，特别关注弃牌操作
-                            print(f"[BROADCAST][game_update]: Action={action}, Player={username}, GameState={updated_state}")
+                            # print(f"[BROADCAST][game_update]: Action={action}, Player={username}, GameState={updated_state}")
                             
                             # Broadcast game update to all players in the room
                             await ws_manager.broadcast_to_room(
@@ -594,7 +594,7 @@ async def game_websocket_endpoint(
                             # Get updated room state
                             updated_state = room.get_state()
                             
-                            print(f"[BROADCAST][room_update] Room {target_room_id}: Action={action}, Player={username}, Result={result.get('success')}")
+                            # print(f"[BROADCAST][room_update] Room {target_room_id}: Action={action}, Player={username}, Result={result.get('success')}")
                             
                             # Send a room update notification with detailed information
                             await ws_manager.broadcast_to_room(

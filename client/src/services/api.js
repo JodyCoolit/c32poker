@@ -511,10 +511,13 @@ export const gameService = {
         }
         
         if (!websocketService.isConnected) {
-            return Promise.reject(new Error('WebSocket未连接，无法执行操作'));
+            console.log('WebSocket未连接，无需发送退出请求');
+            return Promise.resolve({ success: true, data: { message: '已退出游戏' } });
         }
         
+        // 发送退出游戏请求，并标记为主动断开
         const success = websocketService.exitGame(roomId);
+        
         return success 
             ? Promise.resolve({ success: true, data: { message: '退出游戏请求已发送' } }) 
             : Promise.reject(new Error('发送退出游戏请求失败'));
@@ -618,8 +621,8 @@ export const gameService = {
             });
         } catch (error) {
             console.error(`Failed to connect to room ${roomId}:`, error);
-        return Promise.reject(error);
-    }
+            return Promise.reject(error);
+        }
     },
     
     // Disconnect from game room WebSocket
