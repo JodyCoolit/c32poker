@@ -21,7 +21,7 @@ echo "开始构建Docker容器..."
 SERVER_HOST="$SERVER_HOST" docker-compose up --build -d
 
 echo "部署完成！"
-echo "前端可通过 http://$SERVER_HOST 访问"
+echo "前端可通过 http://$SERVER_HOST:8888 访问"
 echo "后端API可通过 http://$SERVER_HOST/api 访问"
 echo "WebSocket可通过 ws://$SERVER_HOST/ws 连接"
 echo ""

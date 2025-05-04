@@ -9,7 +9,7 @@
 
 1. 克隆代码库到服务器
    ```bash
-   git clone <your-repo-url> /opt/c32poker
+   git clone https://github.com/JodyCoolit/c32poker.git /opt/c32poker
    cd /opt/c32poker
    ```
 
@@ -54,10 +54,16 @@
 
 ## 注意事项
 
-1. 默认情况下服务暴露在80端口，确保该端口未被占用
+1. 前端服务暴露在8888端口，请确保该端口未被占用
 2. 生产环境请修改SECRET_KEY为更安全的密钥
 3. 如需配置HTTPS，请修改nginx.conf并添加证书
 4. WebSocket连接依赖于稳定的网络环境，请确保服务器防火墙允许WebSocket连接
+
+## 访问应用
+
+- 前端界面: `http://<服务器IP或域名>:8888`
+- 后端API: `http://<服务器IP或域名>/api`
+- WebSocket: `ws://<服务器IP或域名>/ws`
 
 ## 故障排除
 
