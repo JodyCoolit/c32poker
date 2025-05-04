@@ -2,14 +2,15 @@ import random
 import uuid
 import time
 import threading
-from src.models.deck import Deck
-from src.models.player import Player
-from src.utils.hand_evaluator import HandEvaluator
 import datetime
 import logging
 import asyncio
 import traceback
+from asyncio import get_event_loop_policy, run_coroutine_threadsafe
 
+from src.models.deck import Deck
+from src.models.player import Player
+from src.utils.hand_evaluator import HandEvaluator
 # 导入WebSocket管理器
 from src.websocket_manager import ws_manager
 
@@ -599,32 +600,25 @@ class Game:
                 print("没有玩家可以行动")
                 return
                 
-            # 找到当前玩家在活跃玩家列表中的索引
-            if current_idx is None:
+            # 当前玩家弃牌后，当前玩家在active_players里的index已经指向了下一个活跃玩家
+            if current_idx:
+                self.current_player_idx = self.active_players[current_idx]
+            else:
                 current_idx = self.active_players.index(self.current_player_idx)
-            
-            # 找到下一个非全下的活跃玩家
-            next_player_found = False
-            for _ in range(len(self.active_players)):
-                next_idx = (current_idx + 1) % len(self.active_players)
-                candidate_player_idx = self.active_players[next_idx]
                 
-                # 如果玩家已经全下，继续找下一个
-                if self.players[candidate_player_idx].get("is_all_in", False):
-                    current_idx = next_idx
-                    continue
+                # 找到下一个非全下的活跃玩家
+                for _ in range(len(self.active_players)):
+                    next_idx = (current_idx + 1) % len(self.active_players)
+                    candidate_player_idx = self.active_players[next_idx]
                     
-                # 找到了非全下的玩家
-                self.current_player_idx = candidate_player_idx
-                next_player_found = True
-                break
-            
-            # 如果没有找到非全下的玩家，则说明所有玩家都已全下，此时应直接结束当前轮
-            if not next_player_found:
-                print("所有玩家都已全下，结束当前轮")
-                # 结束当前轮并进入下一轮
-                self.advance_betting_round()
-                return
+                    # 如果玩家已经全下，继续找下一个
+                    if self.players[candidate_player_idx].get("is_all_in", False):
+                        current_idx = next_idx
+                        continue
+                        
+                    # 找到了非全下的玩家
+                    self.current_player_idx = candidate_player_idx
+                    break
             
             # 更新当前玩家属性
             if self.current_player_idx in self.players:
@@ -957,11 +951,21 @@ class Game:
                     
                     # 广播弃牌操作
                     try:
-                        loop = asyncio.get_event_loop()
-                        loop.create_task(ws_manager.broadcast_to_room(room.room_id, discard_broadcast))
-                        # print(f"[BROADCAST][game_update]: Timeout discard, Player={player_name}, Index={discard_index}")
+                        # 获取主事件循环并安排协程任务
+                        try:
+                            main_loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            # 在线程中没有运行中的事件循环，尝试获取默认事件循环策略的事件循环
+                            main_loop = asyncio.get_event_loop_policy().get_event_loop()
+                        
+                        asyncio.run_coroutine_threadsafe(
+                            ws_manager.broadcast_to_room(room.room_id, discard_broadcast),
+                            main_loop
+                        )
+                        print(f"[BROADCAST][game_update]: Timeout discard, Player={player_name}, Index={discard_index}")
                     except Exception as e:
                         print(f"Error broadcasting timeout discard: {str(e)}")
+                        traceback.print_exc()
             
             # Default action is to fold if bet is required, check if possible
             if self.current_bet > self.players[player_idx].get("bet_amount", 0):
@@ -1037,11 +1041,21 @@ class Game:
             
             # 使用异步方式广播消息
             try:
-                loop = asyncio.get_event_loop()
-                loop.create_task(ws_manager.broadcast_to_room(room.room_id, broadcast_message))
-                # print(f"[BROADCAST][game_update]: Timeout action={action_taken}, Player={player_name}")
+                # 尝试获取事件循环
+                try:
+                    main_loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    main_loop = asyncio.get_event_loop_policy().get_event_loop()
+                
+                # 执行广播
+                asyncio.run_coroutine_threadsafe(
+                    ws_manager.broadcast_to_room(room.room_id, broadcast_message),
+                    main_loop
+                )
+                print(f"[BROADCAST][game_update]: Timeout action={action_taken}, Player={player_name}")
             except Exception as e:
                 print(f"Error broadcasting timeout action: {str(e)}")
+                traceback.print_exc()
     
     def cancel_turn_timer(self):
         """Cancel the current turn timer"""
@@ -1094,10 +1108,21 @@ class Game:
             
             # Schedule the broadcast to avoid blocking
             try:
-                loop = asyncio.get_event_loop()
-                loop.create_task(ws_manager.broadcast_to_room(room.room_id, game_end_message))
+                # 获取主事件循环并安排协程任务
+                try:
+                    main_loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    # 在线程中没有运行中的事件循环，尝试获取默认事件循环策略的事件循环
+                    main_loop = asyncio.get_event_loop_policy().get_event_loop()
+                
+                asyncio.run_coroutine_threadsafe(
+                    ws_manager.broadcast_to_room(room.room_id, game_end_message),
+                    main_loop
+                )
+                print(f"游戏结束广播已安排，原因：游戏时间已结束")
             except Exception as e:
                 print(f"Error broadcasting game end: {str(e)}")
+                traceback.print_exc()
             
             return
         
