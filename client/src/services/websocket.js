@@ -183,7 +183,7 @@ class WebSocketService {
 
         // Get WebSocket URL from environment or use default
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsBaseUrl = process.env.REACT_APP_WS_URL || `${wsProtocol}//${window.location.hostname}:8000`;
+        const wsBaseUrl = process.env.REACT_APP_WS_URL || `${wsProtocol}//backend:8000`;
         
         // 确保token正确编码且不为undefined
         const encodedToken = token ? encodeURIComponent(token) : '';
