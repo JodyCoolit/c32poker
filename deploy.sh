@@ -24,10 +24,15 @@ fi
 # 确保脚本有执行权限
 chmod +x update_frontend_config.sh
 chmod +x prepare_deployment.sh
+chmod +x prepare_logs.sh
 
 # 执行准备工作
 echo "执行部署准备工作..."
 ./prepare_deployment.sh
+
+# 修复日志配置
+echo "修复日志配置..."
+./prepare_logs.sh
 
 # 更新前端配置
 ./update_frontend_config.sh "$SERVER_HOST"

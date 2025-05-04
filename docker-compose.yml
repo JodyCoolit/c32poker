@@ -8,6 +8,7 @@ services:
       - ./poker.db:/app/poker.db
       - ./rooms_state.pickle:/app/rooms_state.pickle
       - ./logs:/app/logs
+      - ./poker_server.log:/app/logs/poker_server.log
     ports:
       - "8000:8000"  # 可选，用于直接测试API
     environment:
@@ -17,8 +18,9 @@ services:
     command: >
       bash -c "
         mkdir -p /app/logs && 
-        touch /app/rooms_state.pickle &&
+        touch /app/logs/poker_server.log &&
         chmod 666 /app/poker.db /app/rooms_state.pickle &&
+        chmod 666 /app/logs/poker_server.log &&
         chmod -R 777 /app/logs &&
         gunicorn --bind 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.main:app
       "

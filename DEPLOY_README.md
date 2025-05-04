@@ -5,6 +5,7 @@
 - Linux服务器（Ubuntu/Debian推荐）
 - 已安装Docker和Docker Compose
 - SQLite3命令行工具（用于初始化数据库）
+- Python3（用于运行补丁脚本）
 
 ## 安装Docker和Docker Compose
 
@@ -13,7 +14,7 @@
 ```bash
 # 安装Docker
 sudo apt update
-sudo apt install -y docker.io sqlite3
+sudo apt install -y docker.io sqlite3 python3
 sudo systemctl enable docker
 sudo systemctl start docker
 
@@ -50,7 +51,7 @@ sudo apt install -y docker-compose
 
 3. 执行部署脚本
    ```bash
-   chmod +x deploy.sh update_frontend_config.sh prepare_deployment.sh
+   chmod +x deploy.sh update_frontend_config.sh prepare_deployment.sh prepare_logs.sh
    
    # 正常部署
    ./deploy.sh <服务器IP或域名>
@@ -72,8 +73,9 @@ sudo apt install -y docker-compose
 
 1. 准备部署环境
    ```bash
-   chmod +x prepare_deployment.sh
+   chmod +x prepare_deployment.sh prepare_logs.sh
    ./prepare_deployment.sh
+   ./prepare_logs.sh
    ```
 
 2. 更新前端API配置
@@ -114,7 +116,7 @@ sudo apt install -y docker-compose
 
 - 数据库 (poker.db)
 - 房间状态 (rooms_state.pickle)
-- 日志文件 (logs目录)
+- 日志文件 (logs目录和poker_server.log)
 
 ## 注意事项
 
@@ -145,7 +147,12 @@ sudo apt install -y docker-compose
    - 检查文件权限：`chmod 666 poker.db`
    - 使用`docker compose exec backend python db_upgrade.py`尝试修复
 
-4. 构建失败
+4. 日志文件权限问题
+   - 确保poker_server.log文件存在并有正确权限：`touch poker_server.log && chmod 666 poker_server.log`
+   - 确保logs目录存在并有正确权限：`mkdir -p logs && chmod 777 logs`
+   - 运行日志修复脚本：`./prepare_logs.sh`
+
+5. 构建失败
    - 尝试使用清理选项重新部署：`./deploy.sh --clean <服务器IP>`
    - 检查`prepare_deployment.sh`是否已执行，确保所有必要的文件和目录存在
    - 查看构建日志：`docker compose logs -f`
