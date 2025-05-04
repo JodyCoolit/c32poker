@@ -12,11 +12,11 @@ RUN npm install
 COPY client/ ./
 
 # 设置API端点环境变量（可以在运行时覆盖）
-ARG REACT_APP_API_URL=http://8.134.190.102:8000
+ARG REACT_APP_API_URL=http://localhost:8000
 ENV REACT_APP_API_URL=${REACT_APP_API_URL}
 
 # 设置WebSocket端点环境变量
-ARG REACT_APP_WS_URL=ws://8.134.190.102:8000
+ARG REACT_APP_WS_URL=ws://localhost:8000
 ENV REACT_APP_WS_URL=${REACT_APP_WS_URL}
 
 # 构建应用
