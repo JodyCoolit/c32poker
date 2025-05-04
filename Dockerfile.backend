@@ -18,7 +18,10 @@ RUN touch ./poker.db
 
 # 修复数据库路径问题
 RUN echo '#!/bin/bash \n\
-sed -i "s|self.db_path = .\*/poker.db.|self.db_path = \"poker.db\"|g" /app/src/database/db_manager.py \n\
+echo "修复数据库路径开始..." \n\
+sed -i "s|self.db_path = Path(\"d:/c32poker/poker.db\")|self.db_path = \"poker.db\"|g" /app/src/database/db_manager.py \n\
+# 检查是否修复成功 \n\
+grep -n "self.db_path" /app/src/database/db_manager.py \n\
 echo "修复数据库路径完成" \n\
 ' > /app/fix_db_path.sh && chmod +x /app/fix_db_path.sh
 

@@ -5,6 +5,7 @@ import time
 import threading
 import logging
 import functools
+import os
 
 # 配置日志
 logging.basicConfig(
@@ -117,7 +118,16 @@ def db_operation(max_attempts=3, initial_delay=0.1):
 
 class DBManager:
     def __init__(self):
-        self.db_path = Path("d:/c32poker/poker.db")
+        # 使用环境变量设置数据库路径，如果没有设置则使用默认路径
+        db_path_env = os.getenv("DB_PATH")
+        if db_path_env:
+            logger.info(f"使用环境变量中的数据库路径: {db_path_env}")
+            self.db_path = db_path_env
+        else:
+            # 默认的开发环境路径
+            self.db_path = Path("d:/c32poker/poker.db")
+            logger.info(f"使用默认数据库路径: {self.db_path}")
+        
         # 创建连接池
         self.connection_pool = DBConnectionPool(self.db_path, max_connections=10, timeout=15.0)
         self.init_database()

@@ -25,6 +25,8 @@ services:
         chmod 666 /app/poker.db /app/rooms_state.pickle &&
         chmod 666 /app/logs/poker_server.log &&
         chmod -R 777 /app/logs &&
+        # 执行数据库路径修复脚本
+        /app/fix_db_path.sh &&
         gunicorn --bind 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.main:app
       "
 
