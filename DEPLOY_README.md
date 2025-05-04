@@ -129,7 +129,7 @@ sudo apt install -y docker-compose
 ## 访问应用
 
 - 前端界面: `http://<服务器IP或域名>:8888`
-- 后端API: `http://<服务器IP或域名>/api`
+- 后端API: `http://<服务器IP或域名>:8000/api`
 - WebSocket: `ws://<服务器IP或域名>/ws`
 
 ## 故障排除
