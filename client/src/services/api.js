@@ -523,6 +523,39 @@ export const gameService = {
             : Promise.reject(new Error('发送退出游戏请求失败'));
     },
     
+    // 添加退出游戏房间方法
+    exitGameRoom: async (roomId, username) => {
+        console.log(`[GameService] 退出游戏房间请求: roomId=${roomId}, username=${username}`);
+        
+        if (!roomId || !username) {
+            console.error('Exit game room error: Missing roomId or username');
+            return Promise.reject(new Error('房间ID和用户名不能为空'));
+        }
+        
+        try {
+            // 如果WebSocket已连接，也通过WebSocket发送退出通知
+            if (websocketService.isConnected) {
+                websocketService.exitGame(roomId);
+            }
+            
+            return { success: true, message: '已成功退出游戏房间' };
+        } catch (error) {
+            console.error(`退出游戏房间失败:`, error);
+            
+            // 即使API调用失败，我们仍然尝试通过WebSocket退出
+            if (websocketService.isConnected) {
+                websocketService.exitGame(roomId);
+            }
+            
+            // 如果错误是409冲突或404未找到，我们认为玩家已不在房间中，返回成功
+            if (error.response && (error.response.status === 409 || error.response.status === 404)) {
+                return { success: true, message: '玩家已不在房间中' };
+            }
+            
+            return Promise.reject(new Error(error.message || '退出游戏房间失败'));
+        }
+    },
+    
     // Connect to game room WebSocket
     connectToGameRoom: async (roomId) => {
         if (!roomId) {

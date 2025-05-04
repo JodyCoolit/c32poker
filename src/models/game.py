@@ -627,7 +627,7 @@ class Game:
                 return
                 
             # 当前玩家弃牌后，当前玩家在active_players里的index已经指向了下一个活跃玩家
-            if current_idx:
+            if current_idx is not None:
                 self.current_player_idx = self.active_players[current_idx]
             else:
                 current_idx = self.active_players.index(self.current_player_idx)
