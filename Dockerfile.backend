@@ -11,8 +11,12 @@ RUN pip install gunicorn
 
 # 复制应用程序代码
 COPY src/ ./src/
-COPY data/ ./data/
-COPY poker.db ./
+
+# 创建必要的目录和文件
+RUN mkdir -p ./data
+RUN touch ./poker.db
+
+# 复制其他Python脚本
 COPY *.py ./
 
 # 暴露端口

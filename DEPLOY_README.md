@@ -39,23 +39,34 @@ sudo apt install -y docker-compose
 
 2. 执行部署脚本
    ```bash
-   chmod +x deploy.sh update_frontend_config.sh
+   chmod +x deploy.sh update_frontend_config.sh prepare_deployment.sh
    ./deploy.sh <服务器IP或域名>
    ```
    
    如：`./deploy.sh 192.168.1.100` 或者使用域名 `./deploy.sh poker.example.com`
 
+   如果需要使用服务器的公网IP，可以自动获取：
+   ```bash
+   ./deploy.sh $(curl -s ifconfig.me)
+   ```
+
 ## 手动部署步骤
 
 如果您想手动控制部署过程，可以按以下步骤操作：
 
-1. 更新前端API配置
+1. 准备部署环境
+   ```bash
+   chmod +x prepare_deployment.sh
+   ./prepare_deployment.sh
+   ```
+
+2. 更新前端API配置
    ```bash
    chmod +x update_frontend_config.sh
    ./update_frontend_config.sh <服务器IP或域名>
    ```
 
-2. 构建并启动Docker容器
+3. 构建并启动Docker容器
    ```bash
    # 新版Docker
    SERVER_HOST=<服务器IP或域名> docker compose up --build -d
@@ -112,4 +123,8 @@ sudo apt install -y docker-compose
    - 检查浏览器控制台错误信息
 
 3. 数据库问题
-   - 使用`docker compose exec backend python db_upgrade.py`尝试修复 
+   - 使用`docker compose exec backend python db_upgrade.py`尝试修复
+
+4. 构建失败
+   - 检查`prepare_deployment.sh`是否已执行，确保所有必要的文件和目录存在
+   - 查看构建日志：`docker compose logs -f` 
