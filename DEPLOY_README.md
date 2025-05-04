@@ -40,7 +40,12 @@ sudo apt install -y docker-compose
 2. 执行部署脚本
    ```bash
    chmod +x deploy.sh update_frontend_config.sh prepare_deployment.sh
+   
+   # 正常部署
    ./deploy.sh <服务器IP或域名>
+   
+   # 清理旧容器和镜像后部署（解决构建问题时使用）
+   ./deploy.sh --clean <服务器IP或域名>
    ```
    
    如：`./deploy.sh 192.168.1.100` 或者使用域名 `./deploy.sh poker.example.com`
@@ -83,6 +88,7 @@ sudo apt install -y docker-compose
 - 重启服务：`docker compose restart`
 - 停止服务：`docker compose down`
 - 重新构建并启动：`docker compose up --build -d`
+- 清理未使用的镜像和容器：`docker system prune -f`
 
 **旧版Docker命令：**
 - 查看容器状态：`docker-compose ps`
@@ -126,5 +132,7 @@ sudo apt install -y docker-compose
    - 使用`docker compose exec backend python db_upgrade.py`尝试修复
 
 4. 构建失败
+   - 尝试使用清理选项重新部署：`./deploy.sh --clean <服务器IP>`
    - 检查`prepare_deployment.sh`是否已执行，确保所有必要的文件和目录存在
-   - 查看构建日志：`docker compose logs -f` 
+   - 查看构建日志：`docker compose logs -f`
+   - 如果下载镜像慢，可以考虑配置Docker国内镜像源 
