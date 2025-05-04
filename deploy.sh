@@ -75,7 +75,7 @@ fi
 echo "部署完成！"
 echo "前端可通过 http://$SERVER_HOST:8888 访问"
 echo "后端API可通过 http://$SERVER_HOST:8000/api 访问"
-echo "WebSocket可通过 ws://$SERVER_HOST:8000/ws 连接"
+echo "WebSocket可通过 ws://$SERVER_HOST:8000 连接"
 echo ""
 echo "查看容器状态："
 echo "  新版命令: docker compose ps"

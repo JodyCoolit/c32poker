@@ -51,7 +51,7 @@ services:
       dockerfile: Dockerfile.frontend
       args:
         - REACT_APP_API_URL=http://${SERVER_HOST:-localhost}:8000
-        - REACT_APP_WS_URL=ws://${SERVER_HOST:-localhost}:8000/ws
+        - REACT_APP_WS_URL=ws://${SERVER_HOST:-localhost}:8000
     restart: always
     ports:
       - "8888:80"  # 将宿主机的8888端口映射到容器的80端口
