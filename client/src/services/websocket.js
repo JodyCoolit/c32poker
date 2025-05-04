@@ -1,4 +1,5 @@
 import { toast } from 'react-toastify';
+import { WS_BASE_URL } from '../config';
 
 class WebSocketService {
     constructor() {
@@ -181,9 +182,8 @@ class WebSocketService {
         console.log('- token长度:', token ? token.length : 0);
         console.log('- username:', username);
 
-        // Get WebSocket URL from environment or use default
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsBaseUrl = process.env.REACT_APP_WS_URL || `${wsProtocol}//backend:8000`;
+        // Use WebSocket URL from config
+        const wsBaseUrl = WS_BASE_URL;
         
         // 确保token正确编码且不为undefined
         const encodedToken = token ? encodeURIComponent(token) : '';

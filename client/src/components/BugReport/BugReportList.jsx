@@ -27,6 +27,7 @@ import {
 import { styled } from '@mui/material/styles';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import bugReportService from '../../services/bugReportService';
+import { API_BASE_URL } from '../../config';
 
 // 状态芯片样式
 const StatusChip = styled(Chip)(({ theme, status }) => {
@@ -237,7 +238,7 @@ const BugReportList = () => {
                   {image.path && (
                     <Box 
                       component="img" 
-                      src={`http://localhost:8000/bug_report_images/${image.path.split('/').pop()}`}
+                      src={`${API_BASE_URL}/bug_report_images/${image.path.split('/').pop()}`}
                       alt={`Bug截图 ${index + 1}`}
                       sx={{ maxWidth: '100%', maxHeight: 300, display: 'block' }}
                       onError={(e) => {
@@ -363,77 +364,8 @@ const BugReportList = () => {
         labelRowsPerPage="每页行数"
         labelDisplayedRows={({ from, to, count }) => `${from}-${to} 共 ${count}`}
       />
-      
-      {/* Bug报告详情对话框 */}
-      <Dialog 
-        open={detailOpen} 
-        onClose={handleCloseDetail}
-        fullWidth
-        maxWidth="md"
-      >
-        <DialogTitle>Bug报告详情</DialogTitle>
-        <DialogContent dividers>
-          {detailLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            renderReportDetail()
-          )}
-        </DialogContent>
-        <DialogActions>
-          {selectedReport && (
-            <Button 
-              variant="contained" 
-              color="primary"
-              onClick={() => {
-                handleCloseDetail();
-                handleOpenStatusDialog(selectedReport);
-              }}
-            >
-              更新状态
-            </Button>
-          )}
-          <Button onClick={handleCloseDetail}>关闭</Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* 状态更新对话框 */}
-      <Dialog
-        open={statusDialogOpen}
-        onClose={handleCloseStatusDialog}
-      >
-        <DialogTitle>更新Bug状态</DialogTitle>
-        <DialogContent>
-          <FormControl fullWidth sx={{ mt: 1 }}>
-            <InputLabel id="status-select-label">状态</InputLabel>
-            <Select
-              labelId="status-select-label"
-              value={newStatus}
-              label="状态"
-              onChange={(e) => setNewStatus(e.target.value)}
-            >
-              <MenuItem value="pending">待处理</MenuItem>
-              <MenuItem value="in_progress">处理中</MenuItem>
-              <MenuItem value="resolved">已解决</MenuItem>
-              <MenuItem value="rejected">已拒绝</MenuItem>
-            </Select>
-          </FormControl>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseStatusDialog}>取消</Button>
-          <Button 
-            onClick={handleUpdateStatus} 
-            color="primary"
-            disabled={updatingStatus}
-            startIcon={updatingStatus && <CircularProgress size={16} />}
-          >
-            {updatingStatus ? '更新中...' : '确认更新'}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
 
-export default BugReportList; 
+export default BugReportList;

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import websocketService from './websocket';
+import { API_BASE_URL } from '../config';
 
 // Utility to control log levels
 const LOG_LEVEL = {
@@ -38,7 +39,7 @@ const log = {
 };
 
 const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'http://backend:8000',
+    baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json'
     }
