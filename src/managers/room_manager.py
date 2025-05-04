@@ -176,7 +176,10 @@ class RoomManager:
                 backup_file = f"{STATE_FILE}.bak"
                 if os.path.exists(backup_file):
                     os.remove(backup_file)
-                os.rename(STATE_FILE, backup_file)
+                # Use copy instead of rename for Docker volume mounts
+                with open(STATE_FILE, 'rb') as src:
+                    with open(backup_file, 'wb') as dst:
+                        dst.write(src.read())
             
             # Create a serializable copy of the rooms
             serializable_rooms = {}
