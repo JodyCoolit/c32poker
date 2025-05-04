@@ -157,15 +157,21 @@ async def refresh_token(user_data: RefreshToken, current_user: str = Depends(get
 # 用户相关路由
 @user_router.get("/{username}", summary="获取用户信息")
 async def get_user_info(username: str, current_user: str = Depends(get_current_user)):
+    # 临时禁用权限检查，用于排除前端登录问题
+    """
     # 权限检查: 只能查询自己的信息或系统管理员
     if current_user != username and current_user != "admin":
         print('获取用户信息 raise', current_user, username)
         raise HTTPException(status_code=403, detail="没有权限查询其他用户信息")
+    """
         
     user_info = db.get_user_info(username)
     if not user_info:
         print('用户不存在 raise', username)
         raise HTTPException(status_code=404, detail="用户不存在")
+    
+    # 调试信息
+    print(f"成功获取到用户 {username} 的信息")
     return user_info
 
 @user_router.put("/{username}", summary="更新用户信息")

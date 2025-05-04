@@ -1,6 +1,7 @@
 import sqlite3
 import hashlib
 from pathlib import Path
+import time
 
 class DBManager:
     def __init__(self):
@@ -90,20 +91,50 @@ class DBManager:
         
     def get_user_info(self, username):
         """获取用户信息"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        c.execute('SELECT username, balance, email, avatar FROM users WHERE username = ?', (username,))
-        result = c.fetchone()
-        conn.close()
+        attempts = 0
+        max_attempts = 3
+        timeout = 10.0  # 数据库超时时间设置为10秒
         
-        if result:
-            return {
-                "username": result[0],
-                "balance": result[1],
-                "email": result[2],
-                "avatar": result[3]
-            }
-        return None
+        while attempts < max_attempts:
+            try:
+                # 使用超时参数创建连接
+                conn = sqlite3.connect(self.db_path, timeout=timeout)
+                c = conn.cursor()
+                c.execute('SELECT username, balance, email, avatar FROM users WHERE username = ?', (username,))
+                result = c.fetchone()
+                conn.close()
+                
+                if result:
+                    return {
+                        "username": result[0],
+                        "balance": result[1],
+                        "email": result[2],
+                        "avatar": result[3]
+                    }
+                return None
+                
+            except sqlite3.OperationalError as e:
+                # 数据库锁定或超时错误
+                attempts += 1
+                print(f"数据库访问错误 (attempt {attempts}/{max_attempts}): {str(e)}")
+                if attempts >= max_attempts:
+                    print(f"获取用户信息失败，已达到最大重试次数: {username}")
+                    return None
+                
+                # 增加指数退避延迟
+                delay = 0.1 * (2 ** attempts)  # 0.2, 0.4, 0.8秒...
+                time.sleep(delay)
+                
+            except Exception as e:
+                print(f"获取用户信息出现未预期错误: {str(e)}")
+                return None
+            finally:
+                # 确保连接关闭
+                try:
+                    if 'conn' in locals() and conn:
+                        conn.close()
+                except:
+                    pass
         
     def update_user_balance(self, username, new_balance):
         """更新用户余额"""

@@ -1207,65 +1207,37 @@ const GameTable = () => {
   
   // 退出游戏
   const handleExitGame = async () => {
-    if (!roomId) {
-      console.error('退出游戏失败: 缺少房间ID');
-      toast.error('退出游戏失败: 缺少房间ID');
-      return;
-    }
-    
     try {
       setLoading(true);
-      console.log('开始退出游戏流程...');
+      console.log('用户请求退出游戏');
       
-      // 创建一个变量跟踪是否成功发送了退出请求
-      let exitRequestSent = false;
+      // 1. 首先通知服务器退出房间
+      await gameService.exitGameRoom(roomId, currentUser);
+      console.log('已发送退出房间请求');
+
+      // 2. 显示消息
+      enqueueSnackbar('已退出游戏房间', { 
+        variant: 'success',
+        autoHideDuration: 2000 
+      });
       
-      // 检查WebSocket连接状态
-      if (websocketService.isConnected) {
-        console.log('WebSocket已连接，发送退出游戏请求');
-        
-        try {
-          // 使用gameService通过WebSocket发送退出游戏请求
-          await gameService.exitGame(roomId);
-          console.log('退出游戏请求已发送');
-          exitRequestSent = true;
-          toast.success('已成功退出游戏');
-        } catch (exitError) {
-          console.error('发送退出游戏请求失败:', exitError);
-          toast.warning('无法发送退出请求，但仍将退出游戏');
-        }
-        
-        // 主动关闭WebSocket连接，等待连接关闭
-        console.log('主动关闭WebSocket连接...');
-        try {
-          // 传入true表示这是一个主动断开连接
-          await websocketService.disconnect(true);
-          console.log('WebSocket连接已成功关闭');
-        } catch (disconnectError) {
-          console.error('关闭WebSocket连接失败:', disconnectError);
-        }
-      } else {
-        console.log('WebSocket未连接，无需发送退出请求或关闭连接');
+      // 3. 断开WebSocket连接 - 设置intentional=true表示用户主动断开，不应该尝试重连
+      console.log('正在关闭WebSocket连接...');
+      try {
+        await websocketService.disconnect(true);  // 明确设置为主动断开
+        console.log('WebSocket连接已关闭');
+      } catch (disconnectError) {
+        console.error('关闭WebSocket连接失败:', disconnectError);
       }
       
-      // 移除在localStorage中标记已退出此房间的逻辑
-      
-      // 等待一小段时间确保所有清理工作完成
-      console.log('退出流程完成，准备导航回房间列表');
-      setTimeout(() => {
-        setLoading(false);
-        navigate('/rooms');
-      }, 500);
+      // 4. 立即导航到房间列表页面，不等待重连尝试
+      navigate('/rooms');
       
     } catch (error) {
-      console.error('退出游戏过程中出错:', error);
-      toast.error(error.message || '退出游戏失败，但仍将退出');
-      
-      // 即使出错，也尝试导航回房间列表
-      setTimeout(() => {
-        setLoading(false);
-        navigate('/rooms');
-      }, 500);
+      console.error('退出游戏失败:', error);
+      enqueueSnackbar('退出游戏失败: ' + (error.message || '未知错误'), { variant: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
   

@@ -6,6 +6,7 @@ import datetime
 import logging
 import asyncio
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from asyncio import get_event_loop_policy, run_coroutine_threadsafe
 
 from src.models.deck import Deck
@@ -26,6 +27,33 @@ logging.basicConfig(
 
 logger = logging.getLogger("poker")
 
+# 辅助函数：在新的事件循环中执行异步任务
+def run_async_in_new_loop(coro):
+    """在新的事件循环中执行异步协程任务
+    
+    Args:
+        coro: 要执行的异步协程
+        
+    Returns:
+        协程执行的结果
+    """
+    try:
+        # 创建新的事件循环
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # 在新事件循环中执行协程
+        result = loop.run_until_complete(coro)
+        
+        # 关闭事件循环
+        loop.close()
+        
+        return result
+    except Exception as e:
+        print(f"Error executing async task in new loop: {str(e)}")
+        traceback.print_exc()
+        return None
+
 class Game:
     def __init__(self, players_info, small_blind=None, big_blind=None, player_turn_time=30):
         """初始化游戏对象，但不开始游戏"""
@@ -38,12 +66,7 @@ class Game:
             # 初始化游戏参数
             self.small_blind = small_blind if small_blind is not None else 0.5
             self.big_blind = big_blind if big_blind is not None else 1
-            self.player_turn_time = player_turn_time
-            
-            # 记录游戏开始时的玩家数量，用于决定行动顺序规则
-            self.initial_player_count = len(players_info)
-            print(f"游戏开始时的玩家数量: {self.initial_player_count}")
-            
+            self.player_turn_time = player_turn_time 
             # 初始化数据结构
             self.players = {}
             for player_info in players_info:
@@ -57,6 +80,9 @@ class Game:
             
             # 按照位置从小到大排序active_players
             self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0 and player["online"]])
+            # 记录游戏开始时的玩家数量，用于决定行动顺序规则
+            self.initial_player_count = len(self.active_players)
+            print(f"游戏开始时的玩家数量: {self.initial_player_count}")
             self.pot = 0
             self.current_bet = 0
             self.community_cards = []
@@ -719,8 +745,16 @@ class Game:
                     # 使用初始玩家数量来决定行动顺序规则，而不是当前活跃玩家数量
                     small_blind_idx = None
                     if self.initial_player_count == 2:
-                        small_blind_idx = self.dealer_idx
-                        print(f"两人游戏(初始): 小盲位置 = 庄家位置 = {small_blind_idx}")
+                        # 两人游戏中的行动顺序处理
+                        # 翻牌前：庄家位(小盲位)先行动
+                        # 翻牌后(flop/turn/river)：非庄家位(大盲位)先行动
+                        
+                        # 所有翻牌后轮次(flop/turn/river)，找到非庄家位置(大盲位)作为第一个行动玩家
+                        for pos in sorted_active_players:
+                            if pos != self.dealer_idx:
+                                small_blind_idx = pos  # 翻牌后第一个行动的是大盲位
+                                print(f"两人游戏(翻牌后): 大盲位置先行动 = {small_blind_idx}")
+                                break
                     else:
                         # 三人或更多玩家时，小盲是庄家后一位
                         print(f"三人或更多玩家游戏(初始)，准备寻找庄家后的第一个活跃玩家作为小盲位置")
@@ -951,16 +985,9 @@ class Game:
                     
                     # 广播弃牌操作
                     try:
-                        # 获取主事件循环并安排协程任务
-                        try:
-                            main_loop = asyncio.get_running_loop()
-                        except RuntimeError:
-                            # 在线程中没有运行中的事件循环，尝试获取默认事件循环策略的事件循环
-                            main_loop = asyncio.get_event_loop_policy().get_event_loop()
-                        
-                        asyncio.run_coroutine_threadsafe(
-                            ws_manager.broadcast_to_room(room.room_id, discard_broadcast),
-                            main_loop
+                        # 使用辅助函数在新事件循环中执行广播
+                        run_async_in_new_loop(
+                            ws_manager.broadcast_to_room(room.room_id, discard_broadcast)
                         )
                         print(f"[BROADCAST][game_update]: Timeout discard, Player={player_name}, Index={discard_index}")
                     except Exception as e:
@@ -1041,16 +1068,9 @@ class Game:
             
             # 使用异步方式广播消息
             try:
-                # 尝试获取事件循环
-                try:
-                    main_loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    main_loop = asyncio.get_event_loop_policy().get_event_loop()
-                
-                # 执行广播
-                asyncio.run_coroutine_threadsafe(
-                    ws_manager.broadcast_to_room(room.room_id, broadcast_message),
-                    main_loop
+                # 使用辅助函数在新事件循环中执行广播
+                run_async_in_new_loop(
+                    ws_manager.broadcast_to_room(room.room_id, broadcast_message)
                 )
                 print(f"[BROADCAST][game_update]: Timeout action={action_taken}, Player={player_name}")
             except Exception as e:
@@ -1108,16 +1128,9 @@ class Game:
             
             # Schedule the broadcast to avoid blocking
             try:
-                # 获取主事件循环并安排协程任务
-                try:
-                    main_loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    # 在线程中没有运行中的事件循环，尝试获取默认事件循环策略的事件循环
-                    main_loop = asyncio.get_event_loop_policy().get_event_loop()
-                
-                asyncio.run_coroutine_threadsafe(
-                    ws_manager.broadcast_to_room(room.room_id, game_end_message),
-                    main_loop
+                # 使用辅助函数在新事件循环中执行广播
+                run_async_in_new_loop(
+                    ws_manager.broadcast_to_room(room.room_id, game_end_message)
                 )
                 print(f"游戏结束广播已安排，原因：游戏时间已结束")
             except Exception as e:
