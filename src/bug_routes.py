@@ -19,7 +19,9 @@ bug_router = APIRouter(
 db = DBManager()
 
 # 创建保存图片的目录
-IMAGES_DIR = Path("d:/c32poker/bug_report_images")
+# 使用环境变量或默认为当前目录中的bug_report_images
+IMAGES_DIR_ENV = os.getenv("BUG_IMAGES_DIR", "bug_report_images")
+IMAGES_DIR = Path(IMAGES_DIR_ENV)
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 class BugReportImage(BaseModel):

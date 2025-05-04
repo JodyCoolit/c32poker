@@ -1,5 +1,6 @@
 import sqlite3
 import hashlib
+import os
 
 # User credentials to update
 users = {
@@ -12,8 +13,11 @@ def update_password(username, password):
     # Generate password hash
     password_hash = hashlib.sha256(password.encode()).hexdigest()
     
+    # 使用环境变量或默认为当前目录中的poker.db
+    db_path = os.getenv("DB_PATH", "poker.db")
+    
     # Connect to database
-    conn = sqlite3.connect("d:/c32poker/poker.db")
+    conn = sqlite3.connect(db_path)
     c = conn.cursor()
     
     # Check if user exists

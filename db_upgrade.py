@@ -4,7 +4,9 @@ from pathlib import Path
 
 def upgrade_database():
     """升级数据库结构，添加新字段"""
-    db_path = Path("d:/c32poker/poker.db")
+    # 使用环境变量或默认为当前目录中的poker.db
+    db_path_env = os.getenv("DB_PATH", "poker.db")
+    db_path = Path(db_path_env)
     
     # 检查数据库是否存在
     if not db_path.exists():
