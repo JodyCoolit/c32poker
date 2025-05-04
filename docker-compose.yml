@@ -9,6 +9,8 @@ services:
       - ./rooms_state.pickle:/app/rooms_state.pickle:rw
       - ./logs:/app/logs:rw
       - ./poker_server.log:/app/logs/poker_server.log:rw
+      # Add source directory as a volume to allow modification
+      - ./src:/app/src:rw
     ports:
       - "8000:8000"  # 可选，用于直接测试API
     environment:
@@ -18,15 +20,24 @@ services:
     user: "1000:1000"  # 使用当前用户UID:GID，如果不是1000，请替换为实际值
     command: >
       bash -c "
+        # 先以root用户修改权限
+        if [ ! -w /app/src ]; then 
+          echo '源代码目录不可写，请检查挂载权限' 
+          exit 1
+        fi &&
         mkdir -p /app/logs && 
         touch /app/logs/poker_server.log &&
         echo '数据库路径: /app/poker.db' &&
         ls -la /app/poker.db &&
+        # Create database if not exists and ensure proper permissions
+        touch /app/poker.db && 
         chmod 666 /app/poker.db /app/rooms_state.pickle &&
         chmod 666 /app/logs/poker_server.log &&
         chmod -R 777 /app/logs &&
         # 执行数据库路径修复脚本
         /app/fix_db_path.sh &&
+        # Set database file permission one more time to be sure
+        chmod 666 /app/poker.db &&
         gunicorn --bind 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.main:app
       "
 

@@ -34,6 +34,7 @@ class DBConnectionPool:
             # 如果没有空闲连接且未达到最大连接数，创建新连接
             if len(self.connections) < self.max_connections:
                 try:
+                    logger.info(f"连接数据库: {self.db_path}")
                     conn = sqlite3.connect(self.db_path, timeout=self.timeout)
                     # 启用外键约束
                     conn.execute("PRAGMA foreign_keys = ON")
@@ -121,11 +122,12 @@ class DBManager:
         # 使用环境变量设置数据库路径，如果没有设置则使用默认路径
         db_path_env = os.getenv("DB_PATH")
         if db_path_env:
-            logger.info(f"使用环境变量中的数据库路径: {db_path_env}")
+            # 使用环境变量中的路径
             self.db_path = db_path_env
+            logger.info(f"使用环境变量中的数据库路径: {self.db_path}")
         else:
             # 默认的开发环境路径
-            self.db_path = Path("d:/c32poker/poker.db")
+            self.db_path = "poker.db"  # 使用相对路径，更加通用
             logger.info(f"使用默认数据库路径: {self.db_path}")
         
         # 创建连接池
