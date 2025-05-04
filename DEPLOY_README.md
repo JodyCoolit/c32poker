@@ -4,15 +4,16 @@
 
 - Linux服务器（Ubuntu/Debian推荐）
 - 已安装Docker和Docker Compose
+- SQLite3命令行工具（用于初始化数据库）
 
 ## 安装Docker和Docker Compose
 
-如果您的服务器尚未安装Docker，请先安装：
+如果您的服务器尚未安装Docker和必要工具，请先安装：
 
 ```bash
 # 安装Docker
 sudo apt update
-sudo apt install -y docker.io
+sudo apt install -y docker.io sqlite3
 sudo systemctl enable docker
 sudo systemctl start docker
 
@@ -37,7 +38,17 @@ sudo apt install -y docker-compose
    cd ~/c32poker
    ```
 
-2. 执行部署脚本
+2. 获取当前用户ID，用于容器内权限设置
+   ```bash
+   # 查看当前用户ID和组ID
+   id -u
+   id -g
+   
+   # 如果不是1000:1000，需要在docker-compose.yml中更新user字段
+   # 编辑docker-compose.yml文件，修改user值为您的UID:GID
+   ```
+
+3. 执行部署脚本
    ```bash
    chmod +x deploy.sh update_frontend_config.sh prepare_deployment.sh
    
@@ -111,6 +122,7 @@ sudo apt install -y docker-compose
 2. 生产环境请修改SECRET_KEY为更安全的密钥
 3. 如需配置HTTPS，请修改nginx.conf并添加证书
 4. WebSocket连接依赖于稳定的网络环境，请确保服务器防火墙允许WebSocket连接
+5. 如遇权限问题，请检查docker-compose.yml中的user设置，确保与当前用户ID匹配
 
 ## 访问应用
 
@@ -129,6 +141,8 @@ sudo apt install -y docker-compose
    - 检查浏览器控制台错误信息
 
 3. 数据库问题
+   - 检查poker.db文件是否正确初始化：`ls -la poker.db`
+   - 检查文件权限：`chmod 666 poker.db`
    - 使用`docker compose exec backend python db_upgrade.py`尝试修复
 
 4. 构建失败

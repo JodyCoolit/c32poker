@@ -12,11 +12,16 @@ services:
       - "8000:8000"  # 可选，用于直接测试API
     environment:
       - SECRET_KEY=c32poker_secret_key  # 生产环境应修改为更安全的密钥
-    # 确保logs目录存在
+    # 使用用户命名空间并确保logs目录存在
+    user: "1000:1000"  # 使用当前用户UID:GID，如果不是1000，请替换为实际值
     command: >
-      bash -c "mkdir -p /app/logs && 
-               touch /app/rooms_state.pickle &&
-               gunicorn --bind 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.main:app"
+      bash -c "
+        mkdir -p /app/logs && 
+        touch /app/rooms_state.pickle &&
+        chmod 666 /app/poker.db /app/rooms_state.pickle &&
+        chmod -R 777 /app/logs &&
+        gunicorn --bind 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.main:app
+      "
 
   frontend:
     build:
