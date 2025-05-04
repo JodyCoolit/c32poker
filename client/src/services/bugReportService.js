@@ -1,24 +1,9 @@
 import axios from 'axios';
-
-// 根据环境选择API基础URL
-const getBaseUrl = () => {
-  // 如果存在环境变量，优先使用环境变量
-  if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL;
-  }
-  
-  // 在本地开发环境中使用localhost
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:8000';
-  }
-  
-  // 在生产环境中使用Docker服务名
-  return 'http://backend:8000';
-};
+import { API_BASE_URL } from '../config';  // 导入通用配置
 
 // 创建axios实例，设置基础URL和认证
 const api = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: API_BASE_URL,  // 使用通用配置中的API_BASE_URL
   headers: {
     'Content-Type': 'application/json',
   },

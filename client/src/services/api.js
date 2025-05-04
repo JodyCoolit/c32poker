@@ -137,7 +137,6 @@ export const authService = {
         
         try {
             // 尝试获取用户资料，验证token有效性
-            // 使用正确的API端点：/api/users/{username} 而不是 /api/users/profile
             const response = await api.get(`/api/users/${username}`);
             return {
                 isAuthenticated: true,
