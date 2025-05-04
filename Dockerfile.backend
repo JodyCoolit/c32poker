@@ -13,8 +13,14 @@ RUN pip install gunicorn
 COPY src/ ./src/
 
 # 创建必要的目录和文件
-RUN mkdir -p ./data
+RUN mkdir -p ./data ./logs
 RUN touch ./poker.db
+
+# 修复数据库路径问题
+RUN echo '#!/bin/bash \n\
+sed -i "s|self.db_path = .\*/poker.db.|self.db_path = \"poker.db\"|g" /app/src/database/db_manager.py \n\
+echo "修复数据库路径完成" \n\
+' > /app/fix_db_path.sh && chmod +x /app/fix_db_path.sh
 
 # 复制其他Python脚本
 COPY *.py ./
@@ -22,5 +28,4 @@ COPY *.py ./
 # 暴露端口
 EXPOSE 8000
 
-# 启动应用程序
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.main:app"] 
+# 启动命令会在docker-compose.yml中指定 
