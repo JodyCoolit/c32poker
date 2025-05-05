@@ -39,7 +39,6 @@ services:
         # 确保源代码目录具有正确权限
         chmod -R 755 /app/src &&
         # 执行数据库路径修复脚本
-        /app/fix_db_path.sh &&
         # Set database file permission one more time to be sure
         chmod 666 /app/poker.db &&
         gunicorn --bind 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.main:app
