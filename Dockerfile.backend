@@ -6,7 +6,10 @@ WORKDIR /app
 COPY requirements.txt .
 
 # 安装依赖
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip config set global.trusted-host mirrors.aliyun.com && \
+    pip install --upgrade pip && \
+    pip install --default-timeout=300 --no-cache-dir -r requirements.txt
 RUN pip install gunicorn
 
 # 复制应用程序代码
