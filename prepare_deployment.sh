@@ -9,25 +9,34 @@ mkdir -p data
 # 检查是否存在有效的数据库文件
 if [ ! -f poker.db ] || [ ! -s poker.db ]; then
   echo "创建新的SQLite数据库文件..."
-  # 创建基本的SQLite数据库结构
-  cat > init_db.sql << EOF
-CREATE TABLE IF NOT EXISTS users (
+  if ! command -v sqlite3 &> /dev/null; then
+    echo "警告: sqlite3命令未找到，尝试安装..."
+    apt-get update && apt-get install -y sqlite3
+  fi
+
+  # 确保数据库目录存在
+  mkdir -p data
+
+  # 删除旧数据库文件
+  rm -f poker.db
+
+  # 创建新数据库并初始化表结构
+  sqlite3 poker.db << EOF
+CREATE TABLE users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    email TEXT,
+    password_hash TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-CREATE TABLE IF NOT EXISTS game_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    room_id TEXT,
-    game_data TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+
+-- 添加其他必要的表...
+
+-- 添加测试用户
+INSERT INTO users (username, password_hash) VALUES ('admin', '123');
+INSERT INTO users (username, password_hash) VALUES ('hq', '123');
 EOF
-  # 初始化数据库
-  sqlite3 poker.db < init_db.sql
-  rm init_db.sql
+
+  chmod 666 poker.db
   echo "数据库初始化完成"
 else
   echo "使用现有的数据库文件"
