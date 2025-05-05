@@ -39,9 +39,6 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 添加测试用户
-INSERT INTO users (username, password_hash) VALUES ('admin', '123');
-INSERT INTO users (username, password_hash) VALUES ('hq', '123');
 EOF
 
 # 验证数据库是否创建成功
