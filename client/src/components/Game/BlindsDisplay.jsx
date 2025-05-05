@@ -117,7 +117,7 @@ const BlindsDisplay = ({
       </Box>
       <Tooltip title="小盲/大盲" arrow>
         <BlindChip 
-          label={`${smallBlind}/${bigBlind} BB`}
+          label={`${smallBlind.toFixed(1)}/${bigBlind.toFixed(1)} BB`}
           size="small"
           blindType="big"
           icon={<CasinoIcon style={{ fontSize: '14px' }} />}

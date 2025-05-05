@@ -257,7 +257,7 @@ const ChipsDistributionAnimation = ({
           ))}
           
           {/* 筹码数量 */}
-          <ChipValue>+{chipsWon} BB</ChipValue>
+          <ChipValue>+{chipsWon.toFixed(1)} BB</ChipValue>
         </MovingChipStack>
       );
     });

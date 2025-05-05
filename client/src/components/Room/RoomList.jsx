@@ -516,9 +516,9 @@ const RoomList = () => {
                                         </Box>
                                         
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Casino fontSize="small" />
-                                            <Typography variant="body2">
-                                                盲注: {room.small_blind || 0.5}/{room.big_blind || 1} BB
+                                            <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                                <Casino sx={{ fontSize: 16, mr: 1 }} />
+                                                盲注: {(room.small_blind || 0.5).toFixed(1)}/{(room.big_blind || 1).toFixed(1)} BB
                                             </Typography>
                                         </Box>
                                         

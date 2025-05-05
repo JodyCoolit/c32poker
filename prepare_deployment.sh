@@ -32,13 +32,13 @@ fi
 echo "创建新的SQLite数据库文件..."
 # 创建新数据库并初始化表结构
 sqlite3 poker.db << EOF
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
+CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
     password_hash TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    balance INTEGER DEFAULT 0,
+    email TEXT,
+    avatar TEXT
 );
-
 EOF
 
 # 验证数据库是否创建成功

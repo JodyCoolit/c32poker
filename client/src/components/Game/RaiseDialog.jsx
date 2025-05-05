@@ -109,8 +109,8 @@ const RaiseDialog = ({
       <DialogTitle>{getActionTitle()}金额</DialogTitle>
       <DialogContent>
         {/* 筹码量显示 */}
-        <Typography variant="h4" align="center" gutterBottom>
-          {amount} BB
+        <Typography variant="h4" align="center" sx={{ my: 2 }}>
+          {amount.toFixed(1)} BB
         </Typography>
         
         {/* 滑块 */}

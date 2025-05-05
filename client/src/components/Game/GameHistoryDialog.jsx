@@ -19,7 +19,8 @@ import {
   Tabs,
   Tab,
   CircularProgress,
-  Alert
+  Alert,
+  ButtonBase
 } from '@mui/material';
 
 // 图标
@@ -31,6 +32,7 @@ import CallIcon from '@mui/icons-material/Call';
 import MoneyIcon from '@mui/icons-material/Money';
 import CasinoIcon from '@mui/icons-material/Casino';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 
 /**
  * 游戏历史对话框组件
@@ -257,7 +259,7 @@ const GameHistoryDialog = ({
                     </Grid>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="body2" color="text.secondary">
-                        底池: {selectedHistory.pot} BB
+                        底池: {selectedHistory.pot.toFixed(1)} BB
                       </Typography>
                     </Grid>
                     {selectedHistory.game_id && (
@@ -282,7 +284,24 @@ const GameHistoryDialog = ({
                         <ListItem key={index}>
                           <ListItemText 
                             primary={<Typography variant="body1" sx={{ fontWeight: 'medium', color: '#333' }}>{winner.name}</Typography>} 
-                            secondary={<Typography variant="body2" sx={{ color: '#555' }}>获得 {winner.amount || winner.chips || 0} BB</Typography>} 
+                            secondary={
+                              <>
+                                {winner.hand && (
+                                  <Typography variant="caption" display="block">手牌: {formatHand(winner.hand)}</Typography>
+                                )}
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    color: '#555', 
+                                    display: 'flex', 
+                                    alignItems: 'center' 
+                                  }}
+                                >
+                                  <MonetizationOnIcon sx={{ marginRight: 0.5, fontSize: '0.9rem', color: '#FFD700' }} />
+                                  获得 {(winner.amount || winner.chips || 0).toFixed(1)} BB
+                                </Typography>
+                              </>
+                            } 
                           />
                         </ListItem>
                       ))}
@@ -301,7 +320,13 @@ const GameHistoryDialog = ({
                         <ListItem key={index}>
                           <ListItemText 
                             primary={<Typography variant="body1" sx={{ fontWeight: 'medium', color: '#333' }}>{player.name}</Typography>} 
-                            secondary={<Typography variant="body2" sx={{ color: '#555' }}>位置: {player.position}, 初始筹码: {player.chips_start || player.initial_chips || 0} BB, 结束筹码: {player.chips_end || player.chips || 0} BB</Typography>} 
+                            secondary={
+                              <>
+                                <Typography variant="body2" sx={{ mt: 0.5, color: '#555' }}>
+                                  初始筹码: {(player.chips_start || player.initial_chips || 0).toFixed(1)} BB, 结束筹码: {(player.chips_end || player.chips || 0).toFixed(1)} BB
+                                </Typography>
+                              </>
+                            } 
                           />
                         </ListItem>
                       ))}
@@ -341,7 +366,7 @@ const GameHistoryDialog = ({
                                 </ListItemIcon>
                                 <ListItemText 
                                   primary={<Typography variant="body1" sx={{ fontWeight: 'medium', color: '#333' }}>{action.player}</Typography>} 
-                                  secondary={<Typography variant="body2" sx={{ color: '#555' }}>{getActionName(action.action)}{action.amount ? ` ${action.amount} BB` : ''}</Typography>} 
+                                  secondary={<Typography variant="body2" sx={{ color: '#555' }}>{getActionName(action.action)}{action.amount ? ` ${action.amount.toFixed(1)} BB` : ''}</Typography>} 
                                 />
                               </ListItem>
                             ))}

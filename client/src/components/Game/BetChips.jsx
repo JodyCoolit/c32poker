@@ -116,7 +116,7 @@ const BetChips = ({ betAmount, position }) => {
             fontSize: '0.7rem', // 减小字体大小
           }}
         >
-          {betAmount} BB
+          {betAmount.toFixed(1)} BB
         </Typography>
       </Paper>
     </Box>

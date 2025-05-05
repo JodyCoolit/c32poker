@@ -192,7 +192,7 @@ const PlayerAvatar = ({
       </PlayerName>
       
       <ChipsDisplay>
-        {player.chips ? `{player.chips} BB` : '0 BB'}
+        {player.chips ? `${player.chips.toFixed(1)} BB` : '0.0 BB'}
       </ChipsDisplay>
       
       {lastAction && (

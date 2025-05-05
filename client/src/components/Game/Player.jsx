@@ -385,7 +385,7 @@ const Player = ({
                         fontSize: '0.75rem'
                     }}
                 >
-                    {player.chips || 0} BB
+                    {(player.chips || 0).toFixed(1)} BB
                 </Typography>
                 
                 {/* Fold indicator */}
@@ -441,7 +441,7 @@ const Player = ({
                     boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                     zIndex: 20
                 }}>
-                    +{player.pending_buy_in} BB
+                    +{player.pending_buy_in.toFixed(1)} BB
                 </Box>
             )}
             
@@ -467,7 +467,7 @@ const Player = ({
                         '100%': { transform: 'scale(1)' }
                     }
                 }}>
-                    +{player.chipsWon} BB
+                    +{player.chipsWon.toFixed(1)} BB
                 </Box>
             )}
         </Box>

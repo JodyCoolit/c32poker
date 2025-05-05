@@ -128,7 +128,7 @@ const CommunityCards = ({
             marginBottom: 1
           }}
         >
-          底池: {potAmount} BB
+          底池: {potAmount > 0 ? potAmount.toFixed(1) : 0} BB
         </Typography>
       )}
       
