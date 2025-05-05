@@ -67,7 +67,12 @@ app.add_event_handler("shutdown", shutdown_event)
 # Add CORS support
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://8.134.190.102:8888",     # 前端域名
+        "http://localhost:3000",         # 开发环境
+        "http://127.0.0.1:3000",         # 开发环境替代
+        "http://localhost:8888",         # 开发环境Docker
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -60,6 +60,9 @@ class Game:
         try:
             print(f"Initializing Game with players_info: {players_info}")
             
+            # 定义最大支持的玩家数量
+            self.MAX_PLAYERS = 8
+            
             # 生成初始的手牌ID
             self.handid = str(uuid.uuid4())
             
@@ -628,7 +631,13 @@ class Game:
                 
             # 当前玩家弃牌后，当前玩家在active_players里的index已经指向了下一个活跃玩家
             if current_idx is not None:
-                self.current_player_idx = self.active_players[current_idx]
+                # 检查current_idx是否超出了活跃玩家列表范围（当最后一个玩家弃牌时会发生）
+                if current_idx < len(self.active_players):
+                    self.current_player_idx = self.active_players[current_idx]
+                else:
+                    # 如果超出范围，则设置为第一个活跃玩家（循环到列表开头）
+                    self.current_player_idx = self.active_players[0]
+                    print(f"current_idx {current_idx} 超出了活跃玩家列表范围，设置为第一个活跃玩家: {self.current_player_idx}")
             else:
                 current_idx = self.active_players.index(self.current_player_idx)
                 
@@ -1210,13 +1219,27 @@ class Game:
                 print(f"房间 {room.room_id} 状态设置为 paused - 等待更多玩家加入")
             return
         
+        current_dealer_index = self.dealer_idx
         # Move dealer button - 修正dealer位置计算
-        current_dealer_index = self.active_players.index(self.dealer_idx)
-        # 移动到下一个活跃玩家位置
-        next_dealer_index = (current_dealer_index + 1) % len(self.active_players)
-        self.dealer_idx = self.active_players[next_dealer_index]
-        print(f"移动庄家按钮: {current_dealer_index} -> {next_dealer_index} (位置 {self.dealer_idx})")
-            
+        try:
+            # 如果当前庄家位置不在活跃玩家列表中，则找一个新的庄家位置
+            if self.dealer_idx not in self.active_players:
+                print(f"庄家位置 {self.dealer_idx} 不在活跃玩家列表中，寻找新的庄家位置")
+                # 从所有位置中找到一个最接近原庄家位置的活跃玩家作为新庄家
+                # 从庄家之后的位置开始找
+                for i in range(1, self.MAX_PLAYERS): # 使用类变量代替硬编码的8
+                    next_pos = (self.dealer_idx + i) % self.MAX_PLAYERS
+                    if next_pos in self.active_players:
+                        self.dealer_idx = next_pos
+                        print(f"选择新的庄家位置: {self.dealer_idx}")
+                        break
+
+            print(f"移动庄家按钮: {current_dealer_index} -> {self.dealer_idx} (位置 {self.dealer_idx})")
+        except Exception as e:
+            # 如果出错，选择第一个活跃玩家作为庄家
+            self.dealer_idx = self.active_players[0]
+            print(f"ERROR 处理庄家按钮时出错: {str(e)}，选择第一个活跃玩家 {self.dealer_idx} 作为庄家")
+        
         # 调用start_round方法来处理发牌、盲注和玩家设置
         self.start_round()
 

@@ -1231,7 +1231,7 @@ const GameTable = () => {
       }
       
       // 4. 立即导航到房间列表页面，不等待重连尝试
-      navigate('/rooms');
+        navigate('/rooms');
       
     } catch (error) {
       console.error('退出游戏失败:', error);
