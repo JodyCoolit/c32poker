@@ -23,35 +23,6 @@ RUN touch ./poker.db
 RUN chmod -R 755 /app/src && \
     chmod 666 /app/poker.db
 
-# 修复数据库路径问题
-RUN echo '#!/bin/bash \n\
-echo "修复数据库路径开始..." \n\
-if [ ! -w /app/src/database ]; then \n\
-  echo "错误: 无法写入源代码目录，检查权限" \n\
-  exit 1 \n\
-fi \n\
-# 创建备份 \n\
-cp /app/src/database/db_manager.py /app/src/database/db_manager.py.bak \n\
-\n\
-# 使用环境变量DB_PATH进行配置 - 直接替换关键行 \n\
-sed -i "s|self.db_path = Path(\"d:/c32poker/poker.db\")|self.db_path = \"poker.db\"  # 使用相对路径，更加通用|g" /app/src/database/db_manager.py \n\
-\n\
-# 检查修复是否成功 \n\
-if grep -q "d:/c32poker/poker.db" /app/src/database/db_manager.py; then \n\
-  echo "警告: 无法修改数据库路径，尝试替代方案" \n\
-  # 如果sed失败，尝试使用echo直接写入文件 \n\
-  TEMP_FILE="/tmp/db_manager.py" \n\
-  cat /app/src/database/db_manager.py.bak | sed "s|self.db_path = Path(\"d:/c32poker/poker.db\")|self.db_path = \"poker.db\"  # 使用相对路径，更加通用|g" > $TEMP_FILE \n\
-  cp $TEMP_FILE /app/src/database/db_manager.py \n\
-fi \n\
-\n\
-# 检查确认 \n\
-echo "数据库路径配置行:" \n\
-grep -n "self.db_path" /app/src/database/db_manager.py \n\
-\n\
-echo "修复数据库路径完成" \n\
-' > /app/fix_db_path.sh && chmod +x /app/fix_db_path.sh
-
 # 复制其他Python脚本
 COPY *.py ./
 
