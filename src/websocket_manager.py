@@ -297,20 +297,19 @@ class ConnectionManager:
         return (client_id in self.active_connections and 
                 self.connection_status.get(client_id) == "connected")
 
-    async def send_player_specific_state(self, client_id: str, game_state: dict, player_hand: list = None):
+    async def send_player_specific_state(self, client_id: str, player_hand: list = None):
         """
         Send player-specific game state (including their hand)
         """
         # Make a copy of the game state to avoid modifying the original
-        player_state = dict(game_state)
+        player_hand_state = {}
         
-        # Add player's hand if provided
-        if player_hand:
-            player_state["my_hand"] = player_hand
+        player_hand_state["my_hand"] = player_hand[0]
+        player_hand_state["discarded_card"] = player_hand[1]
         
         await self.send_personal_message({
-            "type": "game_state",
-            "data": player_state
+            "type": "player_hand",
+            "data": player_hand_state
         }, client_id)
 
 # Create a singleton instance

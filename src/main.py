@@ -308,10 +308,10 @@ async def game_websocket_endpoint(
         game_state = room.get_state() if room else None
         if game_state:
             # Get player's hand if game is active
-            player_hand = room.game.get_player_hand(username) if room.game else None
+            player_hand = room.game.get_player_hand(username) if room.game else [None, None]
             
             # Send player-specific state including their hand
-            await ws_manager.send_player_specific_state(client_id, game_state, player_hand)
+            await ws_manager.send_player_specific_state(client_id, player_hand)
         
         # Notify others that player has connected
         await ws_manager.broadcast_to_room(
@@ -430,12 +430,10 @@ async def game_websocket_endpoint(
                             for player_id in room.players:
                                 if ws_manager.is_client_connected(player_id):
                                     player_hand = room.game.get_player_hand(player_id)
-                                    if player_hand:
-                                        await ws_manager.send_player_specific_state(
-                                            player_id,
-                                            updated_state,
-                                            player_hand
-                                        )
+                                    await ws_manager.send_player_specific_state(
+                                        player_id,
+                                        player_hand
+                                    )
                         else:
                             # Send error just to the player who made the invalid action
                             await websocket.send_json({

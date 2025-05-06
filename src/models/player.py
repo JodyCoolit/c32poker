@@ -74,7 +74,6 @@ class Player:
             "total_buy_in": self.total_buy_in,  # 添加总买入字段
             "position": self.position,
             "seat": self.seat,  # 添加座位属性
-            "has_cards": len(self.hole_cards) > 0,
             "current_bet": self.current_bet,
             "total_bet": self.total_bet
         }

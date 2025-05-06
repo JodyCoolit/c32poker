@@ -292,6 +292,12 @@ class WebSocketService {
                             this._queueUpdate(messageRoomId, 'gameState', data.data);
                             break;
                             
+                        case 'player_hand':
+                            // 处理玩家手牌更新
+                            console.log('Received player hand update:', data.data);
+                            this._handlePlayerHandUpdate(data.data);
+                            break;
+                            
                         case 'game_update': 
                             // Queue game update
                             console.log('Received game_update', data.data);
@@ -817,6 +823,23 @@ class WebSocketService {
     // Add convenience method for room updates
     onRoomUpdate(callback) {
         return this.addEventListener('roomUpdate', callback);
+    }
+
+    // 添加处理玩家手牌更新的函数
+    _handlePlayerHandUpdate(data) {
+        // 记录手牌更新
+        console.group('Player Hand Update');
+        console.log('收到的完整数据:', data);
+        console.log('Hand data:', data.my_hand);
+        console.log('Discarded card:', data.discarded_card);
+        console.log('是否包含弃牌信息:', data.hasOwnProperty('discarded_card'));
+        console.groupEnd();
+
+        // 通知监听器
+        this._notifyListeners('playerHand', {
+            my_hand: data.my_hand,
+            discarded_card: data.discarded_card
+        });
     }
 }
 

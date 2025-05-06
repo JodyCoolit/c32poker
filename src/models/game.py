@@ -866,7 +866,6 @@ class Game:
                     "chips": player.get("chips", 0),
                     "position": position,
                     "seat": position,  # 确保返回seat信息
-                    "has_cards": bool(player.get("hand", [])),
                     "is_active": position in self.active_players,
                     "bet_amount": player.get("bet_amount", 0),
                     "folded": position not in self.active_players,
@@ -877,8 +876,6 @@ class Game:
                 
                 # 直接从玩家对象获取弃牌状态
                 player_state["has_discarded"] = player.get("has_discarded", False)
-                if player.get("discarded_card"):
-                    player_state["discarded_card"] = player.get("discarded_card")
                 
                 # 在游戏结束时 (hand_complete) 或者摊牌阶段 (betting_round >= 4) 显示所有活跃玩家的牌
                 if self.hand_complete or self.betting_round >= 4:
@@ -959,7 +956,7 @@ class Game:
                 # Randomly discard a card
                 discard_index = random.randint(0, 2)
                 
-                # 使用handle_action来处理超时弃牌
+                # 使用handle_discard来处理超时弃牌
                 self.current_player_idx = player_idx  # 确保当前玩家设置正确
                 discard_result = self.handle_discard(player_idx, discard_index)
                 
@@ -1010,28 +1007,11 @@ class Game:
                 current_idx = self.active_players.index(self.current_player_idx)
                 result = self.handle_action("fold", 0)
                 action_taken = "fold"
-                # 如果handle_action没有处理游戏流程(例如出现错误)，则手动处理
-                if not result.get("success", False):
-                    # 标记玩家为已行动
-                    self.player_acted[player_idx] = True
-                    
-                    # 手动将玩家从活跃列表中移除(弃牌)
-                    if player_idx in self.active_players:
-                        self.active_players.remove(player_idx)
-                    
-                    # 检查是否只剩一个玩家，如果是则结束游戏
-                    if len(self.active_players) == 1:
-                        self.finish_hand()
             else:
                 # Player can check
                 self.current_player_idx = player_idx  # 确保当前玩家设置正确
                 result = self.handle_action("check", 0)
                 action_taken = "check"
-                
-                # 如果handle_action没有处理游戏流程，则手动处理
-                if not result.get("success", False):
-                    # 标记玩家为已行动
-                    self.player_acted[player_idx] = True
         
         # Add timeout to action history
         self.action_history.append({
@@ -1189,9 +1169,14 @@ class Game:
         self.handid = str(uuid.uuid4())
         print(f"Starting next hand with handid: {self.handid}")
         
-        # 重置每个玩家的下注金额
+        # 重置每个玩家的下注金额，allin状态，pending_buy_in结算，重置玩家弃牌状态。
         for position in self.players:
             self.players[position]['bet_amount'] = 0
+            # 重置全压状态
+            self.players[position]['is_all_in'] = False
+            # 重置弃牌状态和弃掉的牌
+            self.players[position]['has_discarded'] = False
+            self.players[position]['discarded_card'] = None
             
             # 处理pending_buy_in，更新玩家筹码
             if self.players[position]['pending_buy_in'] > 0:
@@ -1507,27 +1492,35 @@ class Game:
             return False
 
     def get_player_hand(self, player_id):
-        """获取指定玩家的手牌
+        """获取指定玩家的手牌和弃牌信息
         
         Args:
             player_id (str): 玩家ID或用户名
             
         Returns:
-            list: 玩家手牌列表，如果玩家不存在则返回None
+            tuple: (player_hand, discarded_card)，如果玩家不存在则返回(None, None)
+                - player_hand (list): 玩家手牌列表
+                - discarded_card (dict): 玩家弃掉的牌
         """
         try:
             # 在玩家字典中查找匹配ID或名称的玩家
             for position, player in self.players.items():
-                if player.get('name') == player_id or player.get('id') == player_id or player.get('username') == player_id:
-                    return player.get('hand', [])
+                if player.get('name') == player_id:
+                    print(f"找到玩家 {player_id} 的信息:")
+                    hand = player.get('hand', [])
+                    discarded = player.get('discarded_card', None)
+                    hand_str = [card['display'] for card in hand] if hand else []
+                    print(f"- 手牌: {hand_str}")
+                    print(f"- 弃牌: {discarded['display'] if discarded else None}")
+                    return hand, discarded
             
             # 如果未找到玩家，记录并返回None
             print(f"Player {player_id} not found in game")
-            return None
+            return None, None
         except Exception as e:
             print(f"Error in get_player_hand: {str(e)}")
             traceback.print_exc()
-            return None
+            return None, None
 
     def get_total_bets(self):
         """计算所有玩家的当前下注总额"""
@@ -1816,10 +1809,9 @@ async def timer_update_task():
                         for player_id in room.players:
                             if ws_manager.is_client_connected(player_id):
                                 player_hand = room.game.get_player_hand(player_id)
-                                if player_hand:
-                                    await ws_manager.send_player_specific_state(
-                                        player_id, game_state, player_hand
-                                    )
+                                await ws_manager.send_player_specific_state(
+                                    player_id, player_hand
+                                )
                         
                         # 更新最后状态和时间
                         last_states[room_id] = current_state

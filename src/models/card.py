@@ -24,7 +24,13 @@ class Card:
         self.suit = state['suit']
         
     def __str__(self):
-        return f"{self.rank}{self.suit.value}"
+        """返回卡牌的简洁字符串表示，例如：'As' 表示黑桃A"""
+        suit_value = self.suit.value if hasattr(self.suit, 'value') else str(self.suit)
+        return f"{self.rank}{suit_value}"
+    
+    def __repr__(self):
+        """控制字典形式打印时的显示格式"""
+        return self.__str__()
     
     def __eq__(self, other):
         if not isinstance(other, Card):

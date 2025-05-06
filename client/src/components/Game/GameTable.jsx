@@ -1778,19 +1778,7 @@ const GameTable = () => {
     fetchCurrentUser();
     
     // 为 gameUpdate 事件创建一个专门的处理函数
-    const handleGameUpdate = (updateData) => {
-      console.log('处理游戏更新:', updateData);
-
-      // 处理弃牌动作
-      if (updateData.action === 'discard' && updateData.player === currentUser) {
-        console.log('处理自己的弃牌操作:', updateData);
-        // 如果玩家弃掉了自己的牌
-        if (updateData.result && updateData.result.discarded_card) {
-          console.log('设置弃掉的牌:', updateData.result.discarded_card);
-          setDiscardedCard(updateData.result.discarded_card);
-        }
-      }
-      
+    const handleGameUpdate = (updateData) => {      
       // 处理弃牌(fold)动作
       if (updateData.action === 'fold') {
         console.log('检测到弃牌(fold)操作:', updateData);
@@ -1801,6 +1789,18 @@ const GameTable = () => {
 
     // 注册gameUpdate事件监听器
     const gameUpdateUnsubscribe = gameService.addEventListener('gameUpdate', handleGameUpdate);
+
+    // 添加玩家手牌更新监听器
+    const playerHandUnsubscribe = gameService.addEventListener('playerHand', (handData) => {
+      console.group('处理玩家手牌更新');
+      console.log('收到的完整数据:', handData);
+      console.log('更新玩家手牌:', handData.my_hand);
+      setPlayerHand(handData.my_hand);
+      console.log('是否包含弃牌信息:', handData.hasOwnProperty('discarded_card'));
+      console.log('更新弃牌信息:', handData.discarded_card);
+      setDiscardedCard(handData.discarded_card);
+      console.groupEnd();
+    });
     
     // 组件卸载时清理
             return () => {
@@ -1810,7 +1810,8 @@ const GameTable = () => {
       disconnectUnsubscribe && disconnectUnsubscribe();
       errorUnsubscribe && errorUnsubscribe();
       roomUpdateUnsubscribe && roomUpdateUnsubscribe();
-      gameUpdateUnsubscribe && gameUpdateUnsubscribe(); // 添加这一行
+      gameUpdateUnsubscribe && gameUpdateUnsubscribe();
+      playerHandUnsubscribe && playerHandUnsubscribe(); // 添加这一行
       
       // 确保所有状态重置
       setLoading(false);
@@ -2063,49 +2064,14 @@ const GameTable = () => {
       
       // 如果是首次收到更新，更新当前玩家
       if (!currentPlayer && currentUser) {
-        const player = newGameState.players?.find(p => p.name === currentUser || p.username === currentUser);
+        const player = newGameState.players?.find(p => p.name === currentUser);
         if (player) {
           setCurrentPlayer(player);
-          setPlayerHand(player.hand || []);
         }
       }
       
       // 处理计时器更新
       handlePlayerTurnTime(newGameState);
-      
-      // 处理玩家手牌 - 从my_hand字段获取
-      if (newGameState.my_hand && Array.isArray(newGameState.my_hand)) {
-        console.log('接收到玩家手牌:', newGameState.my_hand);
-        
-        // 检查是否是弃牌后的更新
-        const isAfterDiscard = (playerHand.length === 3 && newGameState.my_hand.length === 2) || 
-                               (discardedCard && playerHand.length > newGameState.my_hand.length);
-        
-        // 如果是弃牌后的更新，保留弃掉的牌信息
-        if (isAfterDiscard && discardedCard) {
-          console.log('弃牌后更新手牌，保留弃掉的牌信息:', discardedCard);
-          
-          // 创建新的手牌数组，先放置弃掉的牌，然后是当前手牌
-          const updatedHand = [
-            { 
-              ...discardedCard, 
-              isDiscarded: true  // 标记为已弃牌
-            },
-            ...newGameState.my_hand
-          ];
-          
-          console.log('更新后的手牌数组:', updatedHand);
-          setPlayerHand(updatedHand);
-        } else {
-          // 常规更新，直接设置手牌
-          setPlayerHand(newGameState.my_hand);
-          
-          // 如果手牌数量变化且没有弃掉的牌，重置弃掉的牌状态
-          if (playerHand.length !== newGameState.my_hand.length) {
-            setDiscardedCard(null);
-          }
-        }
-      }
       
       // 检查是否当前玩家回合
       if (newGameState.current_player_idx !== undefined) {
@@ -2414,9 +2380,6 @@ const GameTable = () => {
           const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
           // 计算剩余时间，从初始剩余时间开始减少
           const remainingSeconds = Math.max(0, initialRemaining - elapsedSeconds);
-          
-          console.log(`更新思考时间: ${remainingSeconds}秒`);
-          
           // 更新当前玩家信息
           setCurrentPlayerTurnInfo(prev => ({
             ...prev,
@@ -2520,12 +2483,12 @@ const GameTable = () => {
       setShowDealingAnimation(false);
       
       // 显示成功消息
-      setNotification({
-        open: true,
-        message: "发牌动画播放完成",
-        severity: "success",
-        autoHideDuration: 3000
-      });
+      // setNotification({
+      //   open: true,
+      //   message: "发牌动画播放完成",
+      //   severity: "success",
+      //   autoHideDuration: 3000
+      // });
       
       console.log("发牌动画状态已重置，可以再次测试");
     }, 100);
@@ -2740,7 +2703,7 @@ const GameTable = () => {
   
   const getUserPlayer = () => {
     return gameState.game?.players?.find(p => 
-      p.username === currentUser || p.name === currentUser
+      p.name === currentUser
     );
   };
   
@@ -2898,6 +2861,7 @@ const GameTable = () => {
                 bgcolor: 'rgba(0, 0, 0, 0.6)',
                 boxShadow: '0 4px 8px rgba(0, 0, 0, 0.5)',
                 transition: 'all 0.3s ease',
+                filter: getUserPlayer()?.folded || false ? 'brightness(50%) grayscale(100%)' : 'none',
               }}
             >
 

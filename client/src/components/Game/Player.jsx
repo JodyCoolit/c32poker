@@ -106,9 +106,8 @@ const Player = ({
                     )}
                 </Box>
             );
-        } else if (hasHand || player.hasHand || (gameState && gameState.status === 'playing')) {
-            // 没有手牌数据但有手牌标志或游戏正在进行中，显示卡背
-            // 根据游戏类型决定显示几张牌（德州扑克2张，其他可能更多）
+        } else if (gameState && gameState.status === 'playing') {
+            // 玩家未弃牌且游戏进行中，显示卡背
             const cardCount = 2; // 默认两张
             
             return (
@@ -119,7 +118,10 @@ const Player = ({
                     mt: 1,
                     position: 'relative',
                     transform: 'translateY(10px)',
-                    zIndex: 5
+                    zIndex: 5,
+                    opacity: player.folded ? 0.3 : 1,
+                    transition: 'opacity 0.8s ease-out, transform 0.8s ease-out',
+                    transform: player.folded ? 'translateY(20px)' : 'translateY(10px)',
                 }}>
                     {/* 显示卡背 */}
                     {Array.from({ length: cardCount }).map((_, index) => (
@@ -133,7 +135,7 @@ const Player = ({
                                 faceUp={false}
                                 selected={false}
                             />
-                    </Box>
+                        </Box>
                     ))}
                     
                 {/* Show discarded card if player has discarded */}
