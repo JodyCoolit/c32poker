@@ -40,6 +40,23 @@ class Room:
         self.game_end_time = None
         print(f"Room created successfully: id={room_id}")
         
+    @property
+    def is_game_started(self):
+        """检查游戏是否已经开始"""
+        return self.game is not None and self.status == "playing"
+
+    @property
+    def remaining_time(self):
+        """获取游戏剩余时间（秒）"""
+        if not self.game_start_time or not self.game_end_time:
+            return 0
+            
+        now = datetime.now()
+        if now > self.game_end_time:
+            return 0
+            
+        return (self.game_end_time - now).total_seconds()
+        
     def __getstate__(self):
         """Support for pickle serialization"""
         state = self.__dict__.copy()

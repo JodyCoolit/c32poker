@@ -6,6 +6,7 @@ from typing import List, Dict, Optional, Any
 import uuid
 from src.database.db_manager import DBManager
 from src.managers.room_manager import get_instance
+from datetime import datetime
 
 # 创建路由器实例
 router = APIRouter(
@@ -26,7 +27,7 @@ class RoomCreate(BaseModel):
     big_blind: float = 1.0
     buy_in_min: float = 100
     buy_in_max: float = 1000
-    game_duration_hours: float = 2.0
+    game_duration_hours: float = 1.0
     max_players: int = 8
     creator: Optional[str] = None  # 添加可选的创建者字段
 
@@ -44,7 +45,11 @@ class RoomResponse(BaseModel):
     buy_in_max: int
     players: List[Dict[str, Any]]  # 修改为字典列表，支持复杂的玩家信息
     current_players: int
-    game_duration_hours: float = 2.0
+    game_duration_hours: float = 1.0
+    created_at: Optional[datetime] = None  # 添加创建时间字段
+    is_game_started: bool = False  # 添加游戏状态字段
+    status: str = "waiting"  # 添加房间状态字段
+    remaining_time: int = 0  # 添加剩余时间字段
 
 # API 路由
 @router.post("/rooms", response_model=RoomResponse, summary="创建新房间")
@@ -135,7 +140,10 @@ async def get_all_rooms():
             "players": players_info,  # 使用完整的玩家信息
             "current_players": len(room.players),
             "game_duration_hours": room.game_duration_hours,
-            "created_at": room.created_at  # 添加创建时间字段
+            "created_at": room.created_at.isoformat() if room.created_at else None,  # 确保created_at是ISO格式字符串
+            "is_game_started": room.is_game_started,  # 使用Room类的is_game_started属性
+            "status": room.status,  # 添加房间状态
+            "remaining_time": room.remaining_time
         })
         
     return result

@@ -50,6 +50,33 @@ const formatRemainingTime = (seconds) => {
     }
 };
 
+// Add a utility function to format date
+const formatDate = (dateString) => {
+    if (!dateString) return '未知时间';
+    try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMinutes = Math.floor((now - date) / (1000 * 60));
+        
+        if (diffMinutes < 1) return '刚刚';
+        if (diffMinutes < 60) return `${diffMinutes}分钟前`;
+        
+        const diffHours = Math.floor(diffMinutes / 60);
+        if (diffHours < 24) return `${diffHours}小时前`;
+        
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        console.error('Error formatting date:', e);
+        return '未知时间';
+    }
+};
+
 const RoomList = () => {
     const navigate = useNavigate();
     const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -97,8 +124,8 @@ const RoomList = () => {
                 roomsData = [];
             }
             
-            // Sort rooms based on current sort option
-            const sortedRooms = sortRooms(roomsData, sortOption);
+            // Always sort rooms by creation time (newest first) before setting state
+            const sortedRooms = sortRooms(roomsData, 'creation_time');
             setRooms(sortedRooms);
             
             setError(null);
@@ -141,10 +168,10 @@ const RoomList = () => {
             case 'creation_time':
                 // Sort by creation time (descending - newest first)
                 return roomsCopy.sort((a, b) => {
-                    // Use created_at field if available, otherwise use creation_time
-                    const aTime = a.created_at || 0;
-                    const bTime = b.created_at || 0;
-                    return bTime - aTime; // Descending order
+                    // Parse ISO date strings to timestamps
+                    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+                    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+                    return bTime - aTime; // Descending order (newest first)
                 });
             default:
                 return roomsCopy;
@@ -443,6 +470,16 @@ const RoomList = () => {
                                                 }}
                                                 icon={room.is_game_started ? <Casino fontSize="small" /> : undefined}
                                             />
+                                            {room.is_game_started ? (
+                                                <Typography variant="caption" color="textSecondary" sx={{ display: 'flex', alignItems: 'center' }}>
+                                                    <AccessTime fontSize="small" sx={{ mr: 0.5 }} />
+                                                    剩余时间: {formatRemainingTime(room.remaining_time)}
+                                                </Typography>
+                                            ) : (
+                                                <Typography variant="caption" color="textSecondary">
+                                                    创建于: {formatDate(room.created_at)}
+                                                </Typography>
+                                            )}
                                         </Box>
                                         <Button 
                                             variant="contained" 
@@ -521,15 +558,6 @@ const RoomList = () => {
                                                 盲注: {(room.small_blind || 0.5).toFixed(1)}/{(room.big_blind || 1).toFixed(1)} BB
                                             </Typography>
                                         </Box>
-                                        
-                                        {room.is_game_started && room.remaining_time && (
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                <AccessTime fontSize="small" />
-                                                <Typography variant="body2">
-                                                    剩余时间: {formatRemainingTime(room.remaining_time)}
-                                                </Typography>
-                                            </Box>
-                                        )}
                                     </Box>
                                     
                                     {/* 显示房间内玩家列表 */}
