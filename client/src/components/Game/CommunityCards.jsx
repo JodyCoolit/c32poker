@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import PlayingCard from './PlayingCard';
@@ -23,6 +23,9 @@ const CardsContainer = styled(Box)({
   justifyContent: 'center',
   gap: '5px',
   marginTop: '4px',
+  '& .flipped': {
+    transform: 'rotateY(180deg)',
+  }
 });
 
 // 游戏阶段标签
@@ -52,6 +55,32 @@ const CommunityCards = ({
   potAmount = 0,
   status = 'waiting'
 }) => {
+  // 添加翻牌状态控制
+  const [flippedCards, setFlippedCards] = useState([false, false, false, false, false]);
+  
+  // 监听 gamePhase 变化来触发翻牌动画
+  useEffect(() => {
+    if (gamePhase === 'FLOP') {
+      // FLOP：翻开前三张
+      setTimeout(() => {
+        setFlippedCards([true, true, true, false, false]);
+      }, 100);
+    } else if (gamePhase === 'TURN') {
+      // TURN：翻开第四张
+      setTimeout(() => {
+        setFlippedCards(prev => [...prev.slice(0, 3), true, false]);
+      }, 100);
+    } else if (gamePhase === 'RIVER' || gamePhase === 'SHOWDOWN') {
+      // RIVER/SHOWDOWN：翻开第五张
+      setTimeout(() => {
+        setFlippedCards([true, true, true, true, true]);
+      }, 100);
+    } else if (gamePhase === 'PRE_FLOP') {
+      // PRE_FLOP：重置所有牌为未翻开
+      setFlippedCards([false, false, false, false, false]);
+    }
+  }, [gamePhase]);
+
   // 检查是否是有效的游戏阶段或状态
   const isValidGamePhase = (!!gamePhase && validGamePhases.includes(gamePhase)) || status === 'playing';
   
@@ -82,39 +111,22 @@ const CommunityCards = ({
   
   // 渲染牌的函数
   const renderCards = () => {
-    // 如果是PRE_FLOP阶段，显示5张背面朝上的牌
-    if (gamePhase === 'PRE_FLOP') {
-      return Array(5).fill(null).map((_, index) => (
-        <PlayingCard 
-          key={`facedown-${index}`} 
-          faceUp={false}
-          sx={{ width: '60px', height: '90px', margin: '2px' }}
-        />
-      ));
-    }
-    
-    // FLOP、TURN和RIVER阶段
-    // 先显示已知的牌，然后显示卡背（而不是占位符）
-    return (
-      <>
-        {visibleCards.map((card, index) => (
-          <PlayingCard 
-            key={`faceup-${index}`} 
-            card={card} 
-            faceUp={true}
-            sx={{ width: '60px', height: '90px', margin: '2px' }}
-          />
-        ))}
-        
-        {Array(5 - visibleCards.length).fill(null).map((_, index) => (
-          <PlayingCard 
-            key={`facedown-${index + visibleCards.length}`} 
-            faceUp={false}
-            sx={{ width: '60px', height: '90px', margin: '2px' }}
-          />
-        ))}
-      </>
-    );
+    return Array(5).fill(null).map((_, index) => (
+      <PlayingCard 
+        key={`card-${index}`}
+        card={communityCards[index]} 
+        faceUp={flippedCards[index]}
+        sx={{ 
+          width: '60px', 
+          height: '90px', 
+          margin: '2px',
+          transition: 'transform 0.6s',
+          transformStyle: 'preserve-3d',
+        }}
+        // 添加翻牌动画类
+        className={flippedCards[index] ? 'flipped' : ''}
+      />
+    ));
   };
   
   return (

@@ -3,19 +3,26 @@ import { Box, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
 // Styled components for card elements
-const CardContainer = styled(Box)(({ theme, selected }) => ({
+const CardContainer = styled(Box)(({ theme, selected, faceUp }) => ({
   position: 'relative',
   width: '70px',
   height: '100px',
+  perspective: '1000px',
   borderRadius: '5px',
-  boxShadow: selected ? `0 0 0 2px ${theme.palette.primary.main}, 0 4px 8px rgba(0,0,0,0.3)` : '0 2px 4px rgba(0,0,0,0.2)',
-  backgroundColor: 'white',
   margin: '4px',
   userSelect: 'none',
   cursor: 'pointer',
-  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-  '&:hover': {
-    transform: 'translateY(-5px)',
+  '& .card-inner': {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    transition: 'transform 0.6s',
+    transformStyle: 'preserve-3d',
+    boxShadow: selected ? `0 0 0 2px ${theme.palette.primary.main}, 0 4px 8px rgba(0,0,0,0.3)` : '0 2px 4px rgba(0,0,0,0.2)',
+    transform: faceUp ? 'rotateY(180deg)' : 'rotateY(0deg)',
+  },
+  '&:hover .card-inner': {
+    transform: faceUp ? 'rotateY(180deg) translateY(-5px)' : 'rotateY(0deg) translateY(-5px)',
     boxShadow: selected ? `0 0 0 2px ${theme.palette.primary.main}, 0 8px 16px rgba(0,0,0,0.3)` : '0 5px 10px rgba(0,0,0,0.2)'
   }
 }));
@@ -25,7 +32,6 @@ const CardBack = styled(Box)(({ theme }) => ({
   height: '100%',
   borderRadius: '5px',
   position: 'absolute',
-  transformStyle: 'preserve-3d',
   backfaceVisibility: 'hidden',
   backgroundColor: '#1a2c5c',
   backgroundImage: 'repeating-linear-gradient(45deg, #142347, #142347 10px, #1a2c5c 10px, #1a2c5c 20px)',
@@ -35,6 +41,17 @@ const CardBack = styled(Box)(({ theme }) => ({
   justifyContent: 'center',
   alignItems: 'center',
 }));
+
+const CardFront = styled(Box)({
+  width: '100%',
+  height: '100%',
+  borderRadius: '5px',
+  position: 'absolute',
+  backfaceVisibility: 'hidden',
+  backgroundColor: 'white',
+  transform: 'rotateY(180deg)',
+  border: '2px solid #fff',
+});
 
 const CardCorner = styled(Box)(({ position, color }) => ({
   position: 'absolute',
@@ -114,18 +131,21 @@ const parseCard = (cardCode) => {
   return { value: displayValue, symbol, color };
 };
 
-const PlayingCard = ({ card, faceUp = true, selected = false, onClick }) => {
+const PlayingCard = ({ card, faceUp = true, selected = false, onClick, className = '' }) => {
   const { value, symbol, color } = parseCard(card);
   
   return (
     <CardContainer 
       selected={selected} 
+      faceUp={faceUp}
       onClick={onClick}
       role="button"
       aria-label={faceUp ? `${value} of ${symbol}` : 'Card'}
     >
-      {faceUp ? (
-        <>
+      <Box 
+        className={`card-inner ${className}`}
+      >
+        <CardFront>
           <CardCorner position="top" color={color}>
             <Typography variant="subtitle2" sx={{ lineHeight: 1, fontWeight: 'bold' }}>
               {value}
@@ -149,10 +169,10 @@ const PlayingCard = ({ card, faceUp = true, selected = false, onClick }) => {
               {value}
             </Typography>
           </CardCorner>
-        </>
-      ) : (
+        </CardFront>
+        
         <CardBack />
-      )}
+      </Box>
     </CardContainer>
   );
 };

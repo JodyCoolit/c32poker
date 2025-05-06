@@ -142,8 +142,8 @@ const RoomList = () => {
                 // Sort by creation time (descending - newest first)
                 return roomsCopy.sort((a, b) => {
                     // Use created_at field if available, otherwise use creation_time
-                    const aTime = a.created_at || a.creation_time || 0;
-                    const bTime = b.created_at || b.creation_time || 0;
+                    const aTime = a.created_at || 0;
+                    const bTime = b.created_at || 0;
                     return bTime - aTime; // Descending order
                 });
             default:

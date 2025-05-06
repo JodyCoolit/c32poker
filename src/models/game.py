@@ -381,10 +381,10 @@ class Game:
                 call_amount = self.current_bet - current_player.get("bet_amount", 0)
                 
                 if call_amount <= 0:
-                    print("不需要跟注，使用让牌操作")
+                    print("不需要跟注，使用过牌操作")
                     return self.handle_action("check")
                 
-                if call_amount > current_player["chips"]:
+                if call_amount >= current_player["chips"]:
                     print(f"玩家筹码不足，自动改为全下")
                     return self.handle_action("all-in")
                 
@@ -456,15 +456,10 @@ class Game:
                 return {"success": False, "message": f"未知动作: {action}"}
             
             # 检查是否所有剩余活跃玩家都已全下
-            all_remaining_all_in = True
-            for position in self.active_players:
-                if not self.players[position].get("is_all_in", False):
-                    all_remaining_all_in = False
-                    break
-            
-            if all_remaining_all_in and len(self.active_players) > 1:
+            if self.check_all_in_situation():
                 print("所有剩余玩家都已全下，直接进入摊牌阶段")
                 # 发放剩余公共牌并结束游戏
+                self.betting_round = 4
                 self.finish_hand()
                 return {"success": True, "message": "所有玩家都已全下，进入摊牌阶段"}
             
@@ -1710,6 +1705,14 @@ class Game:
             print(f"获取游戏历史记录错误: {str(e)}")
             traceback.print_exc()
             return []
+
+    def check_all_in_situation(self):
+        # 优化检测逻辑：检查活跃玩家中有筹码的玩家数量
+        active_players_with_chips = [
+            pos for pos in self.active_players 
+            if self.players[pos].get("chips", 0) > 0 and not self.players[pos].get("folded", False)
+        ]
+        return len(active_players_with_chips) <= 1
 
 async def timer_update_task():
     # 在函数内部导入以避免循环导入

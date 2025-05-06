@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { Box, Typography, Paper, Chip, Button } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import CommunityCards from './CommunityCards';
@@ -92,52 +92,6 @@ const PlayerPosition = styled(Box)(({ position, theme }) => {
   };
 });
 
-const TableInfo = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  top: theme.spacing(2),
-  left: theme.spacing(2),
-  display: 'flex',
-  flexDirection: 'column',
-  gap: theme.spacing(1),
-  zIndex: 10,
-}));
-
-const InfoChip = styled(Chip)(({ theme }) => ({
-  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  color: 'white',
-  fontWeight: 'bold',
-  backdropFilter: 'blur(4px)',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
-}));
-
-const ActionArea = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  bottom: theme.spacing(2),
-  width: '100%',
-  maxWidth: '600px',
-  zIndex: 20,
-  [theme.breakpoints.down('sm')]: {
-    bottom: theme.spacing(1),
-  }
-}));
-
-// 添加PlayerActionsContainer样式
-const PlayerActionsContainer = styled(Box)(({ theme }) => ({
-  position: 'absolute',
-  bottom: '12%',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  zIndex: 20,
-  width: 'auto',
-  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  borderRadius: theme.shape.borderRadius,
-  padding: theme.spacing(1),
-  backdropFilter: 'blur(5px)',
-  boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
-  display: 'flex',
-  justifyContent: 'center'
-}));
-
 /**
  * 扑克牌桌组件
  * 显示牌桌表面、公共牌和玩家操作界面
@@ -204,35 +158,6 @@ const PokerTable = ({
   
   // Determine if it's the user's turn
   const isUserTurn = userPlayer && turnPlayerId === userPlayer.id;
-  
-  // Get user's seat index
-  const userSeatIndex = userPlayer ? players.indexOf(userPlayer) : -1;
-  
-  // Check if user can perform actions
-  const canCheck = isUserTurn && (currentBet === 0 || (userPlayer.bet && userPlayer.bet >= currentBet));
-  const canCall = isUserTurn && currentBet > 0 && (!userPlayer.bet || userPlayer.bet < currentBet);
-  const canRaise = isUserTurn && userPlayer.chips > 0 && extractedGamePhase !== 'GAME_OVER';
-  
-  // Handle player actions
-  const handleCheck = useCallback(() => {
-    onPlayerAction('check');
-  }, [onPlayerAction]);
-  
-  const handleCall = useCallback(() => {
-    onPlayerAction('call');
-  }, [onPlayerAction]);
-  
-  const handleRaise = useCallback((amount) => {
-    onPlayerAction('raise', amount);
-  }, [onPlayerAction]);
-  
-  const handleFold = useCallback(() => {
-    onPlayerAction('fold');
-  }, [onPlayerAction]);
-  
-  const handleAllIn = useCallback(() => {
-    onPlayerAction('all-in', userPlayer?.chips || 0);
-  }, [onPlayerAction, userPlayer]);
   
   const handleStartGame = useCallback(() => {
     onPlayerAction('start_game');

@@ -166,14 +166,6 @@ const GameTable = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
   
-  // 摊牌阶段信息
-  const [showdownInfo, setShowdownInfo] = useState({
-    players: [],
-    communityCards: [],
-    winners: [],
-    pot: { main: 0, sidePots: [] }
-  });
-  
   // 在GameTable组件内部，useEffect hook中定义的地方
   // 创建一个Map来跟踪最近处理过的消息，防止重复
   const recentNotifications = useRef(new Map());
@@ -1425,10 +1417,7 @@ const GameTable = () => {
   };
   
   // 完成摊牌流程
-  const completeShowdown = (showdownData) => {
-    // 设置摊牌信息，用于对话框显示
-    setShowdownInfo(showdownData);
-    
+  const completeShowdown = (showdownData) => {    
     // 设置显示所有玩家手牌的状态为true
     setShowCards(true);
     
@@ -1472,7 +1461,7 @@ const GameTable = () => {
   };
   
   // 连接WebSocket并设置游戏状态监听
-        useEffect(() => {
+  useEffect(() => {
     if (!roomId) return;
     
     // 重置加载状态和错误消息 - 每次组件重新挂载时
@@ -2052,14 +2041,6 @@ const GameTable = () => {
       // 检测游戏阶段变化并播放相应音效
       if (oldGamePhase !== newGamePhase) {
         console.log(`游戏阶段变化: ${oldGamePhase} -> ${newGamePhase}`);
-        
-        // 检测FLOP, TURN, RIVER阶段变化并播放音效
-        if ((oldGamePhase === 'PRE_FLOP' && newGamePhase === 'FLOP') ||
-            (oldGamePhase === 'FLOP' && newGamePhase === 'TURN') ||
-            (oldGamePhase === 'TURN' && newGamePhase === 'RIVER')) {
-          console.log(`播放翻牌音效: ${newGamePhase}阶段`);
-          soundEffects.playFlopSound();
-        }
       }
       
       // 如果是首次收到更新，更新当前玩家
@@ -2086,7 +2067,7 @@ const GameTable = () => {
       
       // 处理游戏结束和摊牌
       if (newGameState.hand_complete) {
-        console.log("检测到游戏回合结束，准备显示摊牌对话框 newGameState: ", newGameState);
+        console.log("检测到游戏回合结束 newGameState: ", newGameState);
         
         // 准备摊牌数据
         const showdownData = {
@@ -2098,7 +2079,7 @@ const GameTable = () => {
               isWinner: player.is_winner || (newGameState.hand_winners && newGameState.hand_winners.includes(player.position)),
               chipsWon: player.is_winner ? newGameState.game.total_pot / (newGameState.hand_winners?.length || 1) : 0
             })),
-          communityCards: newGameState.community_cards,
+          communityCards: newGameState.game.community_cards,
           winners: newGameState.game.players
             .filter(player => player.is_winner || (newGameState.hand_winners && newGameState.hand_winners.includes(player.position)))
             .map(player => ({
@@ -2121,98 +2102,6 @@ const GameTable = () => {
       console.error('处理游戏状态更新时出错:', error);
     }
   };
-  
-  // 辅助函数：检查游戏状态是否有重要变化
-  const hasSignificantChanges = useCallback((oldState, newState) => {
-    // 如果没有旧状态，则认为有变化
-    if (!oldState) return true;
-    
-    // 如果没有新状态，则不更新
-    if (!newState) return false;
-    
-    // 获取游戏阶段，兼容多种字段名
-    const oldPhase = oldState.gamePhase || oldState.game_phase || '';
-    const newPhase = newState.gamePhase || newState.game_phase || '';
-    
-    // 检查游戏阶段变化
-    if (oldPhase !== newPhase) {
-      console.log(`游戏阶段变化: ${oldPhase || '未定义'} -> ${newPhase || '未定义'}`);
-      return true;
-    }
-    
-    // 检查游戏状态变化
-    if (oldState.status !== newState.status) {
-      console.log(`游戏状态变化: ${oldState.status || '未定义'} -> ${newState.status || '未定义'}`);
-      return true;
-    }
-    
-    // 检查游戏是否开始状态变化
-    if (!!oldState.isGameStarted !== !!newState.isGameStarted) {
-      console.log(`游戏开始状态变化: ${!!oldState.isGameStarted} -> ${!!newState.isGameStarted}`);
-      return true;
-    }
-    
-    // 检查底池变化
-    const oldPot = oldState.pot || oldState.totalPot || 0;
-    const newPot = newState.pot || newState.totalPot || 0;
-    if (oldPot !== newPot) {
-      console.log(`底池变化: ${oldPot} -> ${newPot}`);
-      return true;
-    }
-    
-    // 检查庄家位置变化
-    const oldDealer = oldState.game?.dealer_idx ?? -1;
-    const newDealer = newState.game?.dealer_idx ?? -1;
-    if (oldDealer !== newDealer) {
-      console.log(`庄家位置变化: ${oldDealer} -> ${newDealer}`);
-      return true;
-    }
-    
-    // 检查玩家数量变化
-    const oldPlayerCount = oldState.players?.length || 0;
-    const newPlayerCount = newState.players?.length || 0;
-    if (oldPlayerCount !== newPlayerCount) {
-      console.log(`玩家数量变化: ${oldPlayerCount} -> ${newPlayerCount}`);
-      return true;
-    }
-    
-    // 检查公共牌变化
-    const oldCardCount = oldState.community_cards?.length || oldState.communityCards?.length || 0;
-    const newCardCount = newState.community_cards?.length || newState.communityCards?.length || 0;
-    if (oldCardCount !== newCardCount) {
-      console.log(`公共牌数量变化: ${oldCardCount} -> ${newCardCount}`);
-      return true;
-    }
-    
-    // 检查当前行动玩家变化
-    const oldCurrentPlayer = oldState.current_player_position || oldState.current_player_idx || -1;
-    const newCurrentPlayer = newState.current_player_position || newState.current_player_idx || -1;
-    if (oldCurrentPlayer !== newCurrentPlayer) {
-      console.log(`当前行动玩家变化: ${oldCurrentPlayer} -> ${newCurrentPlayer}`);
-      return true;
-    }
-    
-    // 检查玩家状态变化（筹码、下注、状态等）
-    if (oldState.players && newState.players) {
-      for (let i = 0; i < Math.max(oldPlayerCount, newPlayerCount); i++) {
-        const oldPlayer = oldState.players[i];
-        const newPlayer = newState.players[i];
-        
-        // 如果有一方没有玩家数据，认为有变化
-        if (!oldPlayer || !newPlayer) return true;
-        
-        // 检查关键属性
-        if (oldPlayer.chips !== newPlayer.chips) return true;
-        if (oldPlayer.position !== newPlayer.position) return true;
-        if (oldPlayer.status !== newPlayer.status) return true;
-        if (oldPlayer.bet !== newPlayer.bet) return true;
-        if (!!oldPlayer.isPlaying !== !!newPlayer.isPlaying) return true;
-      }
-    }
-    
-    // 默认不需要更新
-    return false;
-  }, []);
   
   // 处理弃牌完成
   const handleDiscardComplete = (discardedIndex) => {
@@ -2810,7 +2699,7 @@ const GameTable = () => {
           }}
           players={gameState.players}
           currentUser={currentUser}
-          communityCards={gameState.communityCards || (gameState.game && gameState.game.community_cards) || []}
+          communityCards={(gameState.game && gameState.game.community_cards) || []}
           gamePhase={gameState.gamePhase || (gameState.game && gameState.game.game_phase) || 'WAITING'}
           status={gameState.status || (gameState.game && gameState.game.state) || 'waiting'}
           pot={gameState.pot || (gameState.game && gameState.game.total_pot) || 0}

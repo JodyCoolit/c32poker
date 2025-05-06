@@ -134,7 +134,8 @@ async def get_all_rooms():
             "buy_in_max": room.buy_in_max,
             "players": players_info,  # 使用完整的玩家信息
             "current_players": len(room.players),
-            "game_duration_hours": room.game_duration_hours
+            "game_duration_hours": room.game_duration_hours,
+            "created_at": room.created_at  # 添加创建时间字段
         })
         
     return result
