@@ -111,12 +111,17 @@ class Game:
             self.hand_winners = []
             self.current_player = None
             
+            # 添加边池数据结构
+            self.side_pots = []  # 边池列表，每个边池是一个字典，包含金额和有资格的玩家
+            self.main_pot = 0    # 主池金额
+            self.all_in_players = {}  # 记录全压玩家的情况，键为玩家位置，值为全压金额
+            
             print("Game object initialized, ready to start round")
         except Exception as e:
             print(f"Error in Game.__init__: {str(e)}")
             traceback.print_exc()
             raise
-    
+            
     def __getstate__(self):
         """Support for pickle serialization"""
         return self.__dict__
@@ -420,6 +425,8 @@ class Game:
                 # 检查玩家是否已经没有筹码（全下）
                 if current_player["chips"] == 0:
                     current_player["is_all_in"] = True
+                    # 记录全压金额
+                    self.all_in_players[self.current_player_idx] = current_player["bet_amount"]
                     print(f"玩家 {player_name} 已全下")
                 
                 # 重置其他玩家的行动状态
@@ -432,16 +439,20 @@ class Game:
             
             elif action == "all-in":
                 # 全下操作
-                all_in_amount = current_player["chips"] + current_player["bet_amount"]
+                all_in_amount = current_player["chips"]
+                total_bet = current_player.get("bet_amount", 0) + all_in_amount
                 
                 # 更新下注金额
                 current_player["chips"] = 0
-                current_player["bet_amount"] = all_in_amount
+                current_player["bet_amount"] = total_bet
                 current_player["is_all_in"] = True
-                print(f"玩家 {player_name} 已全下")
                 
-                if all_in_amount > self.current_bet:
-                    self.current_bet = all_in_amount
+                # 记录全压金额到all_in_players字典
+                self.all_in_players[self.current_player_idx] = total_bet
+                print(f"玩家 {player_name} 已全下，总下注: {total_bet}")
+                
+                if total_bet > self.current_bet:
+                    self.current_bet = total_bet
                     # 重置其他玩家的行动状态
                     for position in self.active_players:
                         if position != self.current_player_idx:
@@ -497,72 +508,6 @@ class Game:
             print(f"Error in Game.handle_action: {str(e)}")
             traceback.print_exc()
             return {"success": False, "message": f"处理动作时发生错误: {str(e)}"}
-
-    def get_winners(self):
-        # Log pot and player chips before determining winners
-        print("\n=== DETERMINING WINNERS ===")
-        print(f"Current pot: {self.pot}, player bets total: {self.get_total_bets()}")
-        for i, player in enumerate(self.players):
-            print(f"{player['name']} has {player['chips']} chips, bet: {player['bet_amount']}")
-        
-        # Calculate the pot
-        self.pot = self.get_total_bets()
-        print(f"Final pot after adding bets: {self.pot}")
-        
-        if len(self.active_players) == 1:
-            # Only one player left
-            winner_idx = self.active_players[0]
-            winner_name = self.players[winner_idx]["name"]
-            old_chips = self.players[winner_idx]["chips"]
-            self.players[winner_idx]["chips"] += self.pot
-            print(f"Winner (last player standing): {winner_name}, chips: {old_chips} -> {self.players[winner_idx]['chips']}")
-            
-            # Record the win
-            self.action_history.append({
-                "round": self.betting_round,
-                "player_idx": winner_idx,
-                "action": "win_by_default",
-                "amount": self.pot,
-                "timestamp": time.time()
-            })
-            return {"winners": [winner_idx], "pot": self.pot}
-            
-        # Evaluate hands for all active players
-        player_scores = []
-        for player_idx in self.active_players:
-            player = self.players[player_idx]
-            # Combine player's hole cards with community cards
-            cards = player["hand"] + self.community_cards
-            score = self.hand_evaluator.evaluate_hand(cards, self.community_cards)
-            player_scores.append((player_idx, score))
-            
-        # Find the highest score
-        player_scores.sort(key=lambda x: x[1], reverse=True)
-        best_score = player_scores[0][1]
-        
-        # All players with the best score are winners
-        winners = [idx for idx, score in player_scores if score == best_score]
-        
-        # Split the pot among winners
-        winnings = self.pot // len(winners)
-        for winner_idx in winners:
-            self.players[winner_idx]["chips"] += winnings
-            # 记录玩家通过牌面获胜
-            self.action_history.append({
-                "round": self.betting_round,
-                "player_idx": winner_idx,
-                "action": "win_showdown",
-                "amount": winnings,
-                "timestamp": time.time(),
-                "hand_type": best_score[3]  # 记录牌型
-            })
-            
-        # Log final chip counts after distributing the pot
-        print("\n=== FINAL CHIP COUNTS ===")
-        for i, player in enumerate(self.players):
-            print(f"{player['name']} final chip count: {player['chips']}")
-        
-        return {"winners": winners, "pot": self.pot}
     
     def deal_flop(self):
         """发放翻牌圈三张公共牌"""
@@ -1252,32 +1197,32 @@ class Game:
         try:
             self.cancel_all_timers()
             self.hand_complete = True
-            winners = []
-            winning_hands = []
-            winning_hand_descriptions = []
             
             # Add player bets to the pot at the end of the hand
-            self.pot += self.get_total_bets()
-            print(f"Final pot after adding player bets: {self.pot}")
+            pot_total = self.get_total_bets()
+            print(f"计算总底池: {self.pot} + {pot_total} = {self.pot + pot_total}")
             
-            # Check if only one player is left active (everyone else folded)
+            # 检查是否只有一个玩家剩余（其他人都弃牌）
             if len(self.active_players) == 1:
-                # Last player standing wins
                 winner_idx = self.active_players[0]
-                self.players[winner_idx]["chips"] += self.pot
+                winner = self.players[winner_idx]
+                winner_name = winner["name"]
+                
+                # 赢家获得所有底池
+                winner["chips"] += self.pot
                 self.hand_winners = [winner_idx]
                 
-                # Record action
+                # 记录动作
                 self.action_history.append({
                     "round": self.betting_round,
-                    "player": winner_idx,
+                    "player_idx": winner_idx,
                     "action": "win",
                     "amount": self.pot,
                     "reason": "all_folded",
                     "timestamp": time.time()
                 })
                 
-                print(f"Player {self.players[winner_idx]['name']} wins {self.pot} chips (all others folded)")
+                print(f"Player {winner_name} wins {self.pot} chips (all others folded)")
                 
                 # 保存游戏历史记录
                 self.save_game_history()
@@ -1285,6 +1230,9 @@ class Game:
                 # Schedule the next hand
                 self.schedule_next_hand()
                 return
+            
+            # 如果到达摊牌阶段，先创建边池
+            self.create_side_pots()
             
             # If we reached showdown, deal any remaining community cards
             if len(self.community_cards) < 5:
@@ -1305,82 +1253,22 @@ class Game:
                 
                 print(f"Community cards at showdown (total: {len(self.community_cards)}): {self.community_cards}")
             
-            # Evaluate each active player's hand
-            best_player_idx = None
-            best_hand_result = None
+            # 分配奖池
+            winners_info = self.distribute_pots()
             
-            for player_idx in self.active_players:
-                player = self.players[player_idx]
-                # Combine player's hole cards with community cards
-                cards = player["hand"] + self.community_cards
-                
-                # Evaluate the hand
-                hand_result = self.hand_evaluator.evaluate_hand(cards, self.community_cards)
-                
-                # First player sets the initial best hand
-                if best_player_idx is None:
-                    best_player_idx = player_idx
-                    best_hand_result = hand_result
-                    winners = [player_idx]
-                    winning_hands = [hand_result[0]]
-                    winning_hand_descriptions = [hand_result[3]]
-                else:
-                    # Compare with current best hand
-                    # Extract cards for comparison
-                    current_cards = player["hand"]
-                    best_cards = self.players[best_player_idx]["hand"]
-                    
-                    # Use compare_hands to determine which hand is better
-                    comparison = self.hand_evaluator.compare_hands(current_cards, best_cards, self.community_cards)
-                    
-                    if comparison > 0:  # Current hand is better
-                        best_player_idx = player_idx
-                        best_hand_result = hand_result
-                        winners = [player_idx]
-                        winning_hands = [hand_result[0]]
-                        winning_hand_descriptions = [hand_result[3]]
-                    elif comparison == 0:  # Tie
-                        winners.append(player_idx)
-                        winning_hands.append(hand_result[0])
-                        winning_hand_descriptions.append(hand_result[3])
-            
-            # Calculate the chips each winner receives
-            winning_amount = self.pot // len(winners)
-            remainder = self.pot % len(winners)
-            
-            # Distribute the pot among winners
-            for i, winner_idx in enumerate(winners):
-                # Give an extra chip to early winners if there's a remainder
-                extra = 1 if i < remainder else 0
-                amount = winning_amount + extra
-                
-                # Update player's chips
-                self.players[winner_idx]["chips"] += amount
-                
-                # Record action
-                self.action_history.append({
-                    "round": self.betting_round,
-                    "player": winner_idx,
-                    "action": "win",
-                    "amount": amount,
-                    "hand": winning_hand_descriptions[i],
-                    "timestamp": time.time()
-                })
-                
-                print(f"Player {self.players[winner_idx]['name']} wins {amount} chips with {winning_hand_descriptions[i]}")
-            
-            # Update hand_winners for game state tracking
-            self.hand_winners = winners
+            # 从winners_info提取获奖玩家索引
+            self.hand_winners = list(set([info["player_idx"] for info in winners_info]))
             
             # 保存游戏历史记录
             self.save_game_history()
             
+            # 安排下一局
             self.schedule_next_hand()
             
         except Exception as e:
             print(f"Error in Game.finish_hand: {str(e)}")
             traceback.print_exc()
-            
+
     def find_next_player_with_chips(self, start_idx):
         """Find the next player with chips, starting from the given index"""
         if not self.active_players:
@@ -1621,10 +1509,6 @@ class Game:
             return {"success": False, "message": f"处理弃牌操作时发生错误: {str(e)}"}
 
     def save_game_history(self):
-        """将当前游戏的action_history保存到game_history中
-        
-        在一局游戏结束时调用此方法，将当前游戏的历史记录添加到历史记录列表中
-        """
         try:
             if not self.action_history:
                 print("没有行动历史记录可保存")
@@ -1632,64 +1516,75 @@ class Game:
                 
             # 创建一个包含游戏关键信息的游戏记录
             game_record = {
-                "game_id": self.handid,  # 使用游戏的handid作为唯一标识
-                "start_time": None,  # 将通过寻找最早的动作时间设置
-                "end_time": time.time(),  # 当前时间作为结束时间
-                "actions": [],  # 将包含所有动作的副本
-                "players": [],  # 参与游戏的玩家信息
-                "winners": [],  # 赢家信息
-                "pot": self.pot,  # 底池大小
-                "community_cards": self.community_cards,  # 公共牌
+                "game_id": self.handid,
+                "start_time": None,
+                "end_time": time.time(),
+                "actions": [],
+                "players": [],
+                "winners": [],
+                "pot": self.pot,
+                "community_cards": self.community_cards,
                 "small_blind": self.small_blind,
                 "big_blind": self.big_blind
             }
             
-            # 添加玩家信息
+            # 计算每个玩家的实际筹码变化
+            player_gains = {}  # 存储每个玩家的筹码净变化
+            
+            # 初始化玩家净变化为0
+            for position, player in self.players.items():
+                player_gains[position] = 0
+            
+            # 分析所有动作，更新筹码变化
+            for action in self.action_history:
+                action_type = action.get("action", "")
+                player_pos = action.get("player_idx", action.get("player"))
+                amount = action.get("amount", 0)
+                
+                # 根据动作类型更新筹码变化
+                if action_type in ["bet", "raise", "call", "small_blind", "big_blind"]:
+                    # 下注操作减少筹码
+                    player_gains[player_pos] -= amount
+                elif action_type.startswith("win"):
+                    # 获胜操作增加筹码
+                    player_gains[player_pos] += amount
+            
+            # 添加玩家信息，包括正确的筹码变化
             for position, player in self.players.items():
                 if isinstance(player, dict):
+                    initial_chips = player.get("initial_chips", 0)
                     player_record = {
                         "name": player.get("name", ""),
                         "position": position,
-                        "chips_start": player.get("initial_chips", 0),
-                        "chips_end": player.get("chips", 0)
+                        "chips_start": initial_chips,
+                        "chips_end": initial_chips + player_gains[position]  # 使用计算的净变化
                     }
                     game_record["players"].append(player_record)
             
             # 添加赢家信息
             if hasattr(self, 'hand_winners') and self.hand_winners:
-                # 从action_history中找出win类型的动作，获取获胜金额
-                winners_amounts = {}
-                for action in self.action_history:
-                    if action.get('action') in ['win', 'win_by_default'] and 'amount' in action:
-                        player_id = action.get('player_idx', action.get('player'))
-                        if player_id is not None:
-                            winners_amounts[player_id] = action.get('amount', 0)
-                
                 for winner_idx in self.hand_winners:
-                    winner_info = self.players.get(winner_idx, {})
-                    winner_name = ""
-                    if isinstance(winner_info, dict):
-                        winner_name = winner_info.get("name", f"玩家{winner_idx}")
+                    # 过滤出所有该赢家的获胜金额
+                    win_actions = [a for a in self.action_history 
+                                  if a.get("action", "").startswith("win") and 
+                                    (a.get("player_idx", a.get("player")) == winner_idx)]
                     
-                    # 获取获胜金额，如果找不到则为0
-                    amount = winners_amounts.get(winner_idx, 0)
+                    win_amount = sum(a.get("amount", 0) for a in win_actions)
                     
                     game_record["winners"].append({
-                        "name": winner_name,
+                        "name": self.players[winner_idx].get("name", f"玩家{winner_idx}"),
                         "position": winner_idx,
-                        "amount": amount  # 添加获胜金额
+                        "amount": win_amount
                     })
             
             # 复制并处理行动历史记录
             for entry in self.action_history:
-                # 复制条目，避免修改原始数据
                 formatted_entry = entry.copy()
                 
-                # 寻找最早的时间戳作为游戏开始时间
-                if 'timestamp' in entry and (game_record["start_time"] is None or entry['timestamp'] < game_record["start_time"]):
+                if 'timestamp' in entry and (game_record["start_time"] is None or 
+                                             entry['timestamp'] < game_record["start_time"]):
                     game_record["start_time"] = entry['timestamp']
                 
-                # 添加玩家名称
                 if 'player_idx' in entry:
                     player_idx = entry['player_idx']
                     player_info = self.players.get(player_idx, {})
@@ -1706,7 +1601,6 @@ class Game:
             print(f"已保存游戏历史记录，总共有 {len(self.game_history)} 局游戏历史")
             return True
         except Exception as e:
-            import traceback
             print(f"保存游戏历史记录时出错: {str(e)}")
             traceback.print_exc()
             return False
@@ -1771,6 +1665,189 @@ class Game:
         
         # 只有当所有玩家都行动过，且最多只有一个玩家还有筹码时，才进入摊牌
         return len(active_players_with_chips) <= 1
+
+    # 创建边池的方法
+    def create_side_pots(self):
+        """创建主池和边池"""
+        try:
+            print("\n=== 创建边池 ===")
+            # 先计算所有下注总额作为验证
+            total_bets = self.get_total_bets()
+            print(f"所有下注总额: {total_bets}")
+            
+            # 重置边池和主池
+            self.side_pots = []
+            self.main_pot = 0
+            
+            # 收集所有玩家的下注
+            bets = []
+            for position in self.players:
+                player = self.players[position]
+                bet_amount = player.get("bet_amount", 0)
+                if bet_amount > 0:  # 只处理有下注的玩家
+                    bets.append({
+                        "position": position,
+                        "bet": bet_amount,
+                        "is_active": position in self.active_players,
+                    })
+            
+            # 如果没有下注，直接返回
+            if not bets:
+                print("没有玩家下注，不创建池")
+                return
+                
+            # 按下注从小到大排序
+            bets.sort(key=lambda x: x["bet"])
+            
+            # 创建主池 - 所有玩家共同贡献的部分
+            min_bet = bets[0]["bet"]
+            self.main_pot = min_bet * len(bets)
+            print(f"创建主池: {self.main_pot} (最小下注 {min_bet} × {len(bets)} 名玩家)")
+            
+            # 创建边池 - 处理每个下注级别的差额部分
+            prev_bet = min_bet  # 从最小下注开始，已经处理过了
+            for i in range(1, len(bets)):
+                bet_info = bets[i]
+                current_bet = bet_info["bet"]
+                
+                # 如果当前下注等于之前处理的下注，跳过
+                if current_bet == prev_bet:
+                    continue
+                    
+                # 计算当前边池金额 - 只有当前及之后的玩家贡献了这个差额
+                bet_diff = current_bet - prev_bet
+                contributors_count = len(bets) - i
+                pot_amount = bet_diff * contributors_count
+                
+                # 确定有资格的玩家（当前及之后的玩家）
+                eligible_positions = [b["position"] for b in bets[i:]]
+                
+                # 创建边池
+                side_pot = {
+                    "amount": pot_amount,
+                    "eligible_players": eligible_positions,
+                    "bet_level": current_bet
+                }
+                
+                self.side_pots.append(side_pot)
+                print(f"创建边池 {i}: 金额={pot_amount}, 下注级别={current_bet}, 有资格玩家={eligible_positions}")
+                
+                prev_bet = current_bet
+            
+            # 验证计算是否正确
+            calculated_total = self.main_pot + sum(pot["amount"] for pot in self.side_pots)
+            print(f"计算后的总奖池: {calculated_total}, 实际下注总额: {total_bets}")
+            assert calculated_total == total_bets, "奖池计算错误!"
+            
+        except Exception as e:
+            print(f"创建边池出错: {str(e)}")
+            traceback.print_exc()
+
+    # 在合适的地方添加以下分配边池奖励的方法
+    def distribute_pots(self):
+        """分配主池和边池奖励给胜利的玩家"""
+        try:
+            winners_info = []
+            
+            # 处理主池 - 所有活跃玩家都可以竞争
+            active_players = self.active_players
+            
+            if active_players:
+                print(f"分配主池: {self.main_pot}")
+                # 评估并分配主池
+                self._evaluate_and_distribute(active_players, self.pot + self.main_pot, "主池", winners_info)
+            
+            # 处理边池 - 从最小的开始
+            for pot_idx, side_pot in enumerate(self.side_pots):
+                pot_amount = side_pot["amount"]
+                eligible_players = side_pot["eligible_players"]
+                bet_level = side_pot.get("bet_level", "未知")
+                
+                # 只考虑有资格且仍在游戏中的玩家
+                active_eligible = [p for p in eligible_players if p in self.active_players]
+                
+                print(f"分配边池 {pot_idx}: 金额={pot_amount}, 下注级别={bet_level}")
+                print(f"- 有资格玩家: {eligible_players}")
+                print(f"- 活跃有资格玩家: {active_eligible}")
+                
+                if not active_eligible:
+                    # 如果没有活跃的有资格玩家，返还给下注最多的玩家
+                    highest_bettor = max(eligible_players, key=lambda pos: self.players[pos].get("bet_amount", 0))
+                    self.players[highest_bettor]["chips"] += pot_amount
+                    
+                    winners_info.append({
+                        "player_idx": highest_bettor,
+                        "amount": pot_amount,
+                        "pot_type": f"side_pot_{pot_idx}_returned"
+                    })
+                    
+                    print(f"边池 {pot_idx} 没有活跃有资格玩家，{pot_amount} 返还给玩家 {self.players[highest_bettor]['name']}")
+                    continue
+                
+                # 分配边池给活跃的有资格玩家
+                self._evaluate_and_distribute(active_eligible, pot_amount, f"边池_{pot_idx}", winners_info)
+            
+            return winners_info
+            
+        except Exception as e:
+            print(f"分配奖池时出错: {str(e)}")
+            traceback.print_exc()
+            return []
+
+    def _evaluate_and_distribute(self, players, pot_amount, pot_type, winners_info):
+        """评估并分配边池奖励给胜利的玩家"""
+        try:
+            # 评估所有玩家的牌面
+            player_scores = []
+            for player_idx in players:
+                player = self.players[player_idx]
+                # 合并玩家手牌和公共牌
+                cards = player["hand"] + self.community_cards
+                score = self.hand_evaluator.evaluate_hand(cards, self.community_cards)
+                player_scores.append((player_idx, score))
+            
+            # 找出最高分的玩家
+            player_scores.sort(key=lambda x: x[1], reverse=True)
+            best_score = player_scores[0][1]
+            
+            # 找出所有有最高分的玩家
+            pot_winners = [idx for idx, score in player_scores if score == best_score]
+            
+            # 分配奖励
+            split_amount = pot_amount // len(pot_winners)
+            remainder = pot_amount % len(pot_winners)
+            
+            for i, winner_idx in enumerate(pot_winners):
+                # 前remainder名玩家多得1个单位筹码
+                extra = 1 if i < remainder else 0
+                amount = split_amount + extra
+                
+                # 增加玩家筹码
+                self.players[winner_idx]["chips"] += amount
+                
+                # 记录获胜信息
+                winners_info.append({
+                    "player_idx": winner_idx,
+                    "amount": amount,
+                    "pot_type": pot_type
+                })
+                
+                # 记录动作
+                self.action_history.append({
+                    "round": self.betting_round,
+                    "player_idx": winner_idx,
+                    "action": "win_side_pot",
+                    "amount": amount,
+                    "pot_index": pot_type,
+                    "timestamp": time.time(),
+                    "hand_type": best_score[3] if isinstance(best_score, tuple) and len(best_score) > 3 else "unknown"
+                })
+                
+                print(f"玩家 {self.players[winner_idx]['name']} 赢得边池 {pot_type} 的 {amount} 筹码")
+            
+        except Exception as e:
+            print(f"评估边池奖励时出错: {str(e)}")
+            traceback.print_exc()
 
 async def timer_update_task():
     # 在函数内部导入以避免循环导入
