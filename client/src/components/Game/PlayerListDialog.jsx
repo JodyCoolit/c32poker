@@ -34,6 +34,7 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import SignalWifiOffIcon from '@mui/icons-material/SignalWifiOff';
 
 /**
  * 玩家列表对话框组件
@@ -55,7 +56,12 @@ const PlayerListDialog = ({
   const getPlayerStatusText = (player) => {
     if (!player) return '';
     
-    // 首先检查显式标志
+    // 首先检查玩家是否在线
+    if (player.online === false) {
+      return '已断开';
+    }
+    
+    // 检查显式标志
     if (player.isPlaying) {
       return '游戏中';
     } else if (player.isSitting) {
@@ -85,6 +91,8 @@ const PlayerListDialog = ({
         return 'primary';
       case '观察中':
         return 'default';
+      case '已断开':
+        return 'error';
       default:
         return 'default';
     }
@@ -240,15 +248,16 @@ const PlayerListDialog = ({
                     </TableCell>
                     <TableCell align="center">
                       <Chip 
+                        icon={status === '已断开' ? <SignalWifiOffIcon fontSize="small" /> : null}
                         label={status} 
                         size="small" 
                         color={getStatusColor(status)} 
-                        variant={player.isPlaying ? "filled" : "outlined"}
+                        variant={status === '游戏中' ? "filled" : "outlined"}
                       />
                     </TableCell>
                     <TableCell align="center">
                       {player.position !== undefined && player.position >= 0 ? (
-                        <Typography variant="body2">{player.position + 1}</Typography>
+                        <Typography variant="body2">{player.position}</Typography>
                       ) : (
                         <Typography variant="body2" color="text.disabled">-</Typography>
                       )}
