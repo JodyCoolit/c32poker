@@ -97,7 +97,7 @@ api.interceptors.response.use(
 );
 
 export const authService = {
-    login: (username, password) => api.post('/api/auth/login', { username, password }),
+    login: (username, password, config = {}) => api.post('/api/auth/login', { username, password }, config),
     register: (username, password) => api.post('/api/auth/register', { username, password }),
     logout: () => api.post('/api/auth/logout'),
     getProfile: () => {

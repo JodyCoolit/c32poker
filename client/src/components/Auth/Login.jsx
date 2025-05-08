@@ -42,8 +42,21 @@ const Login = () => {
         
         setIsSubmitting(true);
         try {
-            // 使用实际API调用
-            const response = await authService.login(formData.username, formData.password);
+            // 创建超时控制器
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+            }, 10000); // 10秒超时
+            
+            // 使用实际API调用，带超时控制
+            const response = await authService.login(
+                formData.username, 
+                formData.password, 
+                { signal: controller.signal }
+            );
+            
+            // 清除超时计时器
+            clearTimeout(timeoutId);
             
             // 确保从服务器返回的数据包含user_id
             const userData = {
@@ -70,7 +83,12 @@ const Login = () => {
             // 登录成功后的跳转，直接进入rooms页面
             navigate('/rooms', { replace: true });
         } catch (err) {
-            setError('登录失败，请检查用户名和密码。');
+            // 检查是否是超时错误
+            if (err.name === 'AbortError') {
+                setError('登录超时，服务器可能无响应或正在维护，请稍后重试。');
+            } else {
+                setError('登录失败，请检查用户名和密码。');
+            }
             console.error('Login error:', err.response?.data || err.message);
         } finally {
             setIsSubmitting(false);

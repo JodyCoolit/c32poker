@@ -211,7 +211,8 @@ const PlayerActions = ({
   const maxBetValue = playerChips;
   
   // Calculate call amount - how much more the player needs to add to match the current bet
-  const callAmount = Math.max(0, currentBet - playerBetAmount);
+  // Ensure call amount never exceeds player's remaining chips
+  const callAmount = Math.min(Math.max(0, currentBet - playerBetAmount), playerChips);
   
   // Debug log
   useEffect(() => {
