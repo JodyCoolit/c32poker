@@ -74,6 +74,18 @@ const Login = () => {
             localStorage.setItem('username', formData.username);
             localStorage.setItem('loginTime', Date.now().toString());
             
+            // 获取并保存用户头像信息
+            try {
+                // 登录后立即获取用户详细信息
+                const userProfile = await authService.getProfile();
+                if (userProfile.data && userProfile.data.avatar) {
+                    localStorage.setItem('avatar', userProfile.data.avatar);
+                    console.log('用户头像信息已保存', userProfile.data.avatar);
+                }
+            } catch (profileError) {
+                console.error('获取用户头像失败:', profileError);
+            }
+            
             console.log('登录成功，用户信息已保存到localStorage', {
                 username: formData.username,
                 userId: response.data.user_id || response.data.userId,

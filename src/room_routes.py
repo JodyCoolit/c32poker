@@ -34,6 +34,7 @@ class RoomCreate(BaseModel):
 class RoomJoin(BaseModel):
     room_id: str
     username: str
+    avatar: str
 
 class RoomResponse(BaseModel):
     id: str
@@ -225,6 +226,7 @@ async def join_room(join_data: RoomJoin):
     success = room_manager.add_player_to_room(
         room_id=join_data.room_id,
         username=join_data.username,
+        avatar=join_data.avatar
     )
     
     if not success:

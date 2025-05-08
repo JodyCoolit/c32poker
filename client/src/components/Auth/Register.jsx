@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, TextField, Button, Typography, Link, Alert } from '@mui/material';
+import { Box, TextField, Button, Typography, Link, Alert, Divider } from '@mui/material';
 import { authService } from '../../services/api';
+import AvatarSelector from './AvatarSelector';
 
 const Register = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
         username: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        avatar: 'gg_plankton.webp' // 默认头像
     });
     const [error, setError] = useState('');
 
@@ -27,8 +29,19 @@ const Register = () => {
         }
         
         try {
-            // 注册用户
-            await authService.register(formData.username, formData.password);
+            console.group('用户注册');
+            console.log('注册信息:', { 
+                username: formData.username, 
+                avatar: formData.avatar 
+            });
+            console.groupEnd();
+            
+            // 注册用户 - 包含头像信息
+            await authService.register(
+                formData.username, 
+                formData.password, 
+                formData.avatar
+            );
             
             // 注册成功后自动登录
             try {
@@ -36,6 +49,7 @@ const Register = () => {
                 localStorage.setItem('token', response.data.access_token);
                 localStorage.setItem('userId', response.data.user_id || formData.username);
                 localStorage.setItem('username', formData.username); // 确保存储用户名
+                localStorage.setItem('avatar', formData.avatar); // 存储用户选择的头像
                 
                 // 成功登录后直接跳转到房间页面
                 navigate('/rooms');
@@ -49,9 +63,17 @@ const Register = () => {
             setError(err.response?.data?.detail || '注册失败，请稍后再试');
         }
     };
+    
+    // 处理头像选择
+    const handleAvatarSelect = (avatar) => {
+        setFormData({
+            ...formData,
+            avatar
+        });
+    };
 
     return (
-        <Box sx={{ maxWidth: 400, mx: 'auto', mt: 8, p: 3 }}>
+        <Box sx={{ maxWidth: 500, mx: 'auto', mt: 8, p: 3 }}>
             <Typography variant="h4" gutterBottom>注册</Typography>
             
             {error && (
@@ -85,6 +107,15 @@ const Register = () => {
                     onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
                     required
                 />
+                
+                <Divider sx={{ my: 2 }} />
+                
+                {/* 头像选择组件 */}
+                <AvatarSelector 
+                    onSelect={handleAvatarSelect} 
+                    initialAvatar={formData.avatar}
+                />
+                
                 <Button
                     fullWidth
                     variant="contained"

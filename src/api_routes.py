@@ -46,6 +46,7 @@ db = DBManager()
 class UserCredentials(BaseModel):
     username: str
     password: str
+    avatar: Optional[str] = "gg_plankton.webp"  # 默认头像
 
 class RefreshToken(BaseModel):
     username: str
@@ -137,7 +138,7 @@ async def login(user: UserCredentials):
 
 @auth_router.post("/register", summary="用户注册")
 async def register(user: UserCredentials):
-    success, message = db.register_user(user.username, user.password)
+    success, message = db.register_user(user.username, user.password, user.avatar)
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"message": message}

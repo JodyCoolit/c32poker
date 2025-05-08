@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Box, AppBar, Toolbar, Typography, Button, Avatar, IconButton, Menu, MenuItem } from '@mui/material';
 import { useAuth } from '../../App';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import { useState } from 'react';
 import BugReportButton from '../BugReport';
 
 const Layout = () => {
@@ -24,6 +23,16 @@ const Layout = () => {
         logout();
         navigate('/login');
         handleClose();
+    };
+    
+    // 获取用户头像路径
+    const getAvatarPath = () => {
+        // 直接从localStorage读取
+        const avatar = localStorage.getItem('userAvatar');
+        if (avatar) {
+            return `/assets/images/avatar/${avatar}`;
+        }
+        return null;
     };
     
     // 检查当前是否在游戏页面
@@ -55,7 +64,15 @@ const Layout = () => {
                                     onClick={handleMenu}
                                     color="inherit"
                                 >
-                                    <AccountCircleIcon />
+                                    {getAvatarPath() ? (
+                                        <Avatar 
+                                            src={getAvatarPath()} 
+                                            alt={user.username}
+                                            sx={{ width: 32, height: 32 }}
+                                        />
+                                    ) : (
+                                        <AccountCircleIcon />
+                                    )}
                                 </IconButton>
                                 
                                 <Menu

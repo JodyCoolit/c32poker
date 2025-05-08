@@ -4,6 +4,7 @@ import PlayingCard from './PlayingCard';
 import DealerButton from './DealerButton';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'; // 导入奖杯图标
 import StarIcon from '@mui/icons-material/Star'; // 导入备用星星图标
+import PersonIcon from '@mui/icons-material/Person'; // 导入人物图标
 
 /**
  * Player component for displaying player information at the poker table
@@ -354,6 +355,7 @@ const Player = ({
                 {/* Avatar */}
                 <Box sx={{ textAlign: 'center', mb: 0.5 }}>
                     <Avatar 
+                        src={player.avatar ? `/assets/images/avatar/${player.avatar}` : null}
                         sx={{ 
                             width: 36, 
                             height: 36, 
@@ -364,7 +366,7 @@ const Player = ({
                             margin: '0 auto'
                         }}
                     >
-                        {player.name ? player.name.charAt(0).toUpperCase() : '?'}
+                        {player.avatar ? null : <PersonIcon />}
                     </Avatar>
                 </Box>
                 

@@ -98,7 +98,7 @@ api.interceptors.response.use(
 
 export const authService = {
     login: (username, password, config = {}) => api.post('/api/auth/login', { username, password }, config),
-    register: (username, password) => api.post('/api/auth/register', { username, password }),
+    register: (username, password, avatar = 'gg_plankton.webp') => api.post('/api/auth/register', { username, password, avatar }),
     logout: () => api.post('/api/auth/logout'),
     getProfile: () => {
         const username = localStorage.getItem('username');
@@ -215,6 +215,7 @@ export const roomService = {
         
         // Get current username
         const username = localStorage.getItem('username');
+        const avatar = localStorage.getItem('avatar');
         if (!username) {
             log.error('Join room failed: No username found');
             return Promise.reject(new Error('用户未登录'));
@@ -223,7 +224,8 @@ export const roomService = {
         // Create request body for API
         const joinData = {
             room_id: roomId,
-            username: username
+            username: username,
+            avatar: avatar
         };
         
         // Log minimal info
@@ -278,9 +280,6 @@ export const roomService = {
             log.error('Failed to send start game request via WebSocket');
             return Promise.reject(new Error('发送开始游戏请求失败'));
         }
-    },
-    joinOrCreateRoom: (roomId, password = '') => {
-        return api.post(`/api/rooms/${roomId}/join`, { password });
     }
 };
 
@@ -565,6 +564,8 @@ export const gameService = {
         
         const token = localStorage.getItem('token');
         const username = localStorage.getItem('username');
+        const avatar = localStorage.getItem('avatar');
+
         
         if (!token || !username) {
             console.error('Cannot connect to game room: Missing authentication');
@@ -584,7 +585,8 @@ export const gameService = {
                     // Join the room first (this will be a no-op if already a member)
                     await api.post('/api/rooms/join', {
                         room_id: roomId,
-                        username: username
+                        username: username,
+                        avatar: avatar
                     });
                     console.log(`Successfully joined room ${roomId}`);
                 }

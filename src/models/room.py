@@ -66,37 +66,6 @@ class Room:
         """Support for pickle deserialization"""
         self.__dict__.update(state)
         
-    def add_player(self, username, chips):
-        """添加玩家到房间"""
-        if len(self.players) >= self.max_players:
-            return False, "房间已满"
-            
-        # Check for existing player in database
-        try:
-            from src.database.db_manager import DBManager
-            db_manager = DBManager()
-            user_info = db_manager.get_user_info(username)
-        except Exception as e:
-            print(f"Error checking user info: {str(e)}")
-            # Continue with default logic if database check fails
-            
-        if username in self.players:
-            return False, "已在房间中"
-            
-        # 创建玩家对象并添加到房间
-        player = Player(username, chips)
-        self.players[username] = player
-        self.players_ready[username] = False  # 默认未就位
-        
-        # 如果是第一个加入的玩家，设为房主
-        if len(self.players) == 1:
-            self.owner = username
-        
-        # 更新最后活动时间
-        self.update_activity_time()
-            
-        return True, "加入成功"
-        
     def remove_player(self, username):
         """从房间移除玩家"""
         if username not in self.players:
@@ -202,7 +171,8 @@ class Room:
                         "total_buy_in": player.total_buy_in,
                         "pending_buy_in": player.pending_buy_in,
                         "online": True,
-                        "bet_amount": 0
+                        "bet_amount": 0,
+                        "avatar": player.avatar
                     })
             
             print(f"Player info list: {players_info}")
@@ -487,7 +457,8 @@ class Room:
                         'online': True,
                         'has_discarded': False,
                         'discarded_card': None,
-                        'bet_amount': 0
+                        'bet_amount': 0,
+                        'avatar': player.avatar
                     }
                     print(f"游戏已开始，添加新玩家 {username} 到game.players，座位 {seat_index}，筹码 {player.chips}")
             
@@ -696,6 +667,7 @@ class Room:
                         "name": player.name,
                         "chips": player.chips,
                         "total_buy_in": player.total_buy_in,
+                        "avatar": player.avatar
                     }
                     
                     # 添加座位信息

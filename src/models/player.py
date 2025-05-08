@@ -1,5 +1,5 @@
 class Player:
-    def __init__(self, name, chips):
+    def __init__(self, name, chips, avatar):
         print(f"Creating Player: name={name}, chips={chips}")
         self.name = name
         self.chips = chips
@@ -12,6 +12,7 @@ class Player:
         self.current_bet = 0  # 当前回合下注额
         self.total_bet = 0    # 当前牌局总下注额
         self.status = "active"  # active, folded, all-in
+        self.avatar = avatar
         print(f"Player {name} created successfully with no assigned seat")
         
     def __getstate__(self):
@@ -75,5 +76,6 @@ class Player:
             "position": self.position,
             "seat": self.seat,  # 添加座位属性
             "current_bet": self.current_bet,
-            "total_bet": self.total_bet
+            "total_bet": self.total_bet,
+            "avatar": self.avatar
         }

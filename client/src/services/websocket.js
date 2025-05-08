@@ -33,6 +33,7 @@ class WebSocketService {
         this.intentionalDisconnect = false;
         // 添加currentRoomId记录当前连接的房间
         this.currentRoomId = null;
+        this.connectionAttempts = {};
     }
 
     // Generate a simple hash from game state to detect relevant changes
@@ -165,6 +166,15 @@ class WebSocketService {
     }
 
     connect(roomId) {
+        // 检查是否在连接过程中
+        if (this.connectionAttempts[roomId]) {
+            console.log(`已经在尝试连接到房间 ${roomId}，忽略重复请求`);
+            return;
+        }
+        
+        // 设置连接标志
+        this.connectionAttempts[roomId] = true;
+        
         // 检查是否已连接到其他房间
         if (this.isConnected && this.currentRoomId && this.currentRoomId !== roomId) {
             console.log(`已连接到房间 ${this.currentRoomId}，需要断开后再连接到新房间 ${roomId}`);
@@ -385,6 +395,8 @@ class WebSocketService {
                 message: '无法创建WebSocket连接',
                 error 
             });
+        } finally {
+            delete this.connectionAttempts[targetRoomId];
         }
     }
 

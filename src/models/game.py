@@ -80,6 +80,7 @@ class Game:
                 self.players[position]["discarded_card"] = None
                 # 记录玩家初始筹码数
                 self.players[position]["initial_chips"] = player_info["chips"]
+                self.players[position]["avatar"] = player_info["avatar"]
             
             # 按照位置从小到大排序active_players
             self.active_players = sorted([position for position, player in self.players.items() if player["chips"] > 0 and player["online"]])
@@ -832,7 +833,8 @@ class Game:
                     "is_current_player": position == self.current_player_idx,
                     "total_buy_in": player.get("total_buy_in", player.get("chips", 0)),
                     "pending_buy_in": player.get("pending_buy_in", 0),
-                    "online": player.get("online", True)
+                    "online": player.get("online", True),
+                    "avatar": player["avatar"]
                 }
                 
                 # 直接从玩家对象获取弃牌状态

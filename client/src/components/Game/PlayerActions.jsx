@@ -456,7 +456,7 @@ const PlayerActions = ({
               fullWidth
               sx={{ minHeight: '36px', bgcolor: 'rgb(211, 47, 47) !important', '&:hover': { bgcolor: 'rgb(178, 40, 40) !important' } }}
               >
-              {loading ? <CircularProgress size={18} color="inherit" /> : `BET ${betAmount.toFixed(1)}`}
+              {loading ? <CircularProgress size={18} color="inherit" /> : `RAISE TO ${betAmount.toFixed(1)}`}
             </ActionButton>
           </Box>
             </Box>

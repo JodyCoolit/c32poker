@@ -133,7 +133,6 @@ const GameTable = () => {
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [recentlyDisconnected, setRecentlyDisconnected] = useState(false);
   
   // 玩家信息
   const [currentUser, setCurrentUser] = useState('');
@@ -1298,56 +1297,6 @@ const GameTable = () => {
       console.error('获取游戏历史记录失败:', error);
       setHistoryError(error.message || '获取历史记录失败');
       setHistoryLoading(false);
-    }
-  };
-  
-  // 处理开始游戏
-  const handleStartGame = async () => {
-    if (!roomId) {
-      console.error('开始游戏失败: 缺少房间ID');
-      return;
-    }
-            
-    try {
-      setLoading(true);
-      console.log('请求开始游戏...');
-      
-      // 检查WebSocket连接状态
-      if (!websocketService.isConnected) {
-        console.warn('WebSocket未连接，尝试重新连接...');
-        // 尝试重新连接
-        try {
-          await gameService.connectToGameRoom(roomId);
-          console.log('WebSocket重新连接成功，继续开始游戏操作');
-        } catch (connectError) {
-          console.error('WebSocket重新连接失败:', connectError);
-          throw new Error('无法与游戏服务器通信，请刷新页面重试');
-        }
-      }
-      
-      // 使用gameService通过WebSocket发送开始游戏请求
-      await gameService.startGame(roomId);
-      
-      console.log('开始游戏请求已发送');
-      
-      // 显示成功消息
-      setNotification({
-        open: true,
-        message: '开始游戏请求已发送',
-        severity: 'success'
-      });
-      
-    } catch (error) {
-      console.error('开始游戏失败:', error);
-      
-      // 显示错误消息
-      setNotification({
-        open: true,
-        message: error.message || '开始游戏失败，请稍后重试',
-        severity: 'error'
-      });
-    } finally {
-      setLoading(false);
     }
   };
   

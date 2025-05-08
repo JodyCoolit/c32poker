@@ -399,8 +399,15 @@ class RoomManager:
         
         return GLOBAL_ROOMS
         
-    def add_player_to_room(self, room_id, username):
-        """将玩家添加到房间"""
+    def add_player_to_room(self, room_id, username, avatar):
+        """
+        添加玩家到房间
+        
+        Args:
+            room_id (str): 房间ID
+            username (str): 玩家用户名
+            avatar (str, optional): 玩家头像
+        """
         room = self.get_room(room_id)
         if not room:
             return False
@@ -412,7 +419,7 @@ class RoomManager:
             return False
             
         # 创建玩家对象并添加到房间
-        player = Player(username, 0)
+        player = Player(username, 0, avatar)
         # 显式设置座位和位置为None，防止自动分配座位
         player.seat = None
         player.position = None

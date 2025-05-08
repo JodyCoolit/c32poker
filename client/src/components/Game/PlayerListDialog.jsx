@@ -28,9 +28,6 @@ import {
 // 图标
 import PersonIcon from '@mui/icons-material/Person';
 import StarIcon from '@mui/icons-material/Star';
-import ChairIcon from '@mui/icons-material/Chair';
-import CasinoIcon from '@mui/icons-material/Casino';
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
@@ -226,8 +223,11 @@ const PlayerListDialog = ({
                   >
                     <TableCell component="th" scope="row">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Avatar sx={{ bgcolor: isCurrentUser ? 'primary.main' : 'grey.400' }}>
-                          <PersonIcon />
+                        <Avatar 
+                          src={player.avatar ? `/assets/images/avatar/${player.avatar}` : null}
+                          sx={{ bgcolor: isCurrentUser ? 'primary.main' : 'grey.400' }}
+                        >
+                          {!player.avatar && <PersonIcon />}
                         </Avatar>
                         <Box>
                           <Typography variant="body2">

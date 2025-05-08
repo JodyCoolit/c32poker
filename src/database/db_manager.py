@@ -378,13 +378,13 @@ class DBManager:
                 self.connection_pool.release_connection(conn)
     
     @db_operation(max_attempts=3)
-    def register_user(self, conn, username, password):
+    def register_user(self, conn, username, password, avatar):
         """注册新用户"""
         password_hash = hashlib.sha256(password.encode()).hexdigest()
         try:
             c = conn.cursor()
-            c.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)',
-                     (username, password_hash))
+            c.execute('INSERT INTO users (username, password_hash, avatar) VALUES (?, ?, ?)',
+                     (username, password_hash, avatar))
             conn.commit()
             return True, "注册成功"
         except sqlite3.IntegrityError:
