@@ -989,12 +989,20 @@ const GameTable = () => {
   };
   
   // 买入操作
-        const handleBuyIn = async () => {
+  const handleBuyIn = async () => {
     console.log(`执行买入操作: 金额=${buyInAmount}, 座位=${selectedSeat}`);
     
     // 验证买入金额
     if (!buyInAmount || isNaN(buyInAmount) || buyInAmount < 1) {
       setErrorMessage('请输入有效的买入金额（至少1 BB）');
+      return;
+    }
+    
+    // 查找选中座位对应的真实位置
+    const seatData = seatDisplayData.find(seat => seat.position === selectedSeat);
+    if (!seatData) {
+      console.error(`无法找到座位 ${selectedSeat} 对应的数据`);
+      setErrorMessage('座位数据无效');
       return;
     }
     
@@ -1015,7 +1023,7 @@ const GameTable = () => {
     try {
       // 确保发送数值类型而非字符串
       const buyInAmountValue = Number(buyInAmount);
-      const seatIndexValue = Number(selectedSeat);
+      const seatIndexValue = Number(seatData.realPosition); // 使用realPosition而不是position
       
       console.log(`发送买入请求: 金额=${buyInAmountValue}, 座位=${seatIndexValue}`);
       
@@ -1475,178 +1483,184 @@ const GameTable = () => {
     
     let wsConnectTimeout;
     
-    // 强制断开并重新连接WebSocket (确保进入新房间时建立新的连接)
+    // 检查当前连接状态
     if (websocketService.isConnected) {
-      console.log('检测到WebSocket已连接，强制断开并重新连接');
-      websocketService.disconnect();
+        // 如果已连接但是不同房间，才需要断开重连
+        if (websocketService.currentRoomId !== roomId) {
+            console.log(`当前连接到房间 ${websocketService.currentRoomId}，需要切换到新房间 ${roomId}`);
+            websocketService.disconnect();
+        } else {
+            console.log(`已经连接到正确的房间 ${roomId}，无需重新连接`);
+            return;
+        }
     }
     
     // 确保WebSocket已连接
-      console.log(`GameTable初始化WebSocket连接: roomId=${roomId}`);
-      
-      // 设置加载状态
-      setLoading(true);
-      
-      // 检查认证令牌
-      const token = localStorage.getItem('token');
-      const username = localStorage.getItem('username');
-      
-      if (!token || !username) {
+    console.log(`GameTable初始化WebSocket连接: roomId=${roomId}`);
+    
+    // 设置加载状态
+    setLoading(true);
+    
+    // 检查认证令牌
+    const token = localStorage.getItem('token');
+    const username = localStorage.getItem('username');
+    
+    if (!token || !username) {
         console.error('认证令牌不存在，需要重新登录');
         enqueueSnackbar('您需要登录才能访问游戏房间', {
-          variant: 'error',
-          autoHideDuration: 3000,
-          onClose: () => {
-            // 跳转到登录页面
-            navigate('/login', { state: { from: { pathname: `/game/${roomId}` } } });
-          }
+            variant: 'error',
+            autoHideDuration: 3000,
+            onClose: () => {
+                // 跳转到登录页面
+                navigate('/login', { state: { from: { pathname: `/game/${roomId}` } } });
+            }
         });
         setLoading(false);
+        return;
+    }
+    
+    console.log('认证信息:');
+    console.log('- token存在:', !!token);
+    console.log('- token长度:', token.length);
+    console.log('- username:', username);
+    
+    // Try to establish connection with the specific room ID
+    gameService.connectToGameRoom(roomId)
+      .then(() => {
+        console.log(`成功连接到房间 ${roomId}`);
+        setLoading(false);
+        
+        // 显示成功消息
+        enqueueSnackbar('已连接到游戏房间', { 
+          variant: 'success',
+          autoHideDuration: 2000
+        });
+        
+        // 服务器会自动发送初始游戏状态，不需要客户端主动请求
+        // 只需要设置一次性游戏状态监听器来接收服务器自动发送的游戏状态
+        try {
+          // 设置一次性游戏状态监听器
+          const initialGameStateHandler = (data) => {
+            console.log('收到初始游戏状态:', data);
+            if (data) {
+              // 检查房间状态是否为finished，如果是则重定向到房间列表
+              if (data.status === "finished") {
+                console.log('房间游戏已结束，重定向到房间列表页面');
+                enqueueSnackbar('该房间游戏已结束', { 
+                  variant: 'info',
+                  autoHideDuration: 3000
+                });
+                navigate('/rooms');
                 return;
-            }
-            
-      console.log('认证信息:');
-      console.log('- token存在:', !!token);
-      console.log('- token长度:', token.length);
-      console.log('- username:', username);
-      
-      // Try to establish connection with the specific room ID
-      gameService.connectToGameRoom(roomId)
-        .then(() => {
-          console.log(`成功连接到房间 ${roomId}`);
-          setLoading(false);
-          
-          // 显示成功消息
-          enqueueSnackbar('已连接到游戏房间', { 
-            variant: 'success',
-            autoHideDuration: 2000
-          });
-          
-          // 服务器会自动发送初始游戏状态，不需要客户端主动请求
-          // 只需要设置一次性游戏状态监听器来接收服务器自动发送的游戏状态
-          try {
-            // 设置一次性游戏状态监听器
-            const initialGameStateHandler = (data) => {
-              console.log('收到初始游戏状态:', data);
-              if (data) {
-                // 检查房间状态是否为finished，如果是则重定向到房间列表
-                if (data.status === "finished") {
-                  console.log('房间游戏已结束，重定向到房间列表页面');
-                  enqueueSnackbar('该房间游戏已结束', { 
-                    variant: 'info',
-                    autoHideDuration: 3000
-                  });
-                  navigate('/rooms');
-                  return;
-                }
-                // 处理游戏状态，允许数据可能嵌套在game对象中
-                const newGameState = JSON.parse(JSON.stringify(data));
+              }
+              // 处理游戏状态，允许数据可能嵌套在game对象中
+              const newGameState = JSON.parse(JSON.stringify(data));
 
-                // 提取嵌套在game对象中的玩家信息
-                if (newGameState.game && newGameState.game.players && Array.isArray(newGameState.game.players)) {
-                  console.log(`从game对象提取玩家列表，玩家数量: ${newGameState.game.players.length}`);
-                  // 如果顶级没有players数组，或者是空数组，则使用game.players
-                  if (!newGameState.players || !Array.isArray(newGameState.players) || newGameState.players.length === 0) {
-                    newGameState.players = newGameState.game.players;
-                  }
+              // 提取嵌套在game对象中的玩家信息
+              if (newGameState.game && newGameState.game.players && Array.isArray(newGameState.game.players)) {
+                console.log(`从game对象提取玩家列表，玩家数量: ${newGameState.game.players.length}`);
+                // 如果顶级没有players数组，或者是空数组，则使用game.players
+                if (!newGameState.players || !Array.isArray(newGameState.players) || newGameState.players.length === 0) {
+                  newGameState.players = newGameState.game.players;
                 }
+              }
 
-                // 设置处理后的游戏状态
-                setGameState(newGameState);
+              // 设置处理后的游戏状态
+              setGameState(newGameState);
+              
+              // 尝试找到并设置当前玩家信息
+              const players = newGameState.players || [];
+              if (players.length > 0 && currentUser) {
+                const player = players.find(p => 
+                  p.name === currentUser || p.username === currentUser
+                );
                 
-                // 尝试找到并设置当前玩家信息
-                const players = newGameState.players || [];
-                if (players.length > 0 && currentUser) {
-                  const player = players.find(p => 
-                    p.name === currentUser || p.username === currentUser
-                  );
-                  
-                  if (player) {
-                    console.log('初始化当前玩家信息:', player);
-                  
-                    // 检查玩家是否有有效的座位号
-                    const hasValidSeat = (player.position !== undefined && player.position !== null && player.position >= 0) ||
-                                        (player.seat !== undefined && player.seat !== null && player.seat >= 0);
-                  
-                    // 如果玩家没有有效座位，确保position值为null或-1
-                    if (!hasValidSeat) {
-                      console.log('玩家未入座，设置position为-1');
-                      setCurrentPlayer({
-                      ...player,
-                        position: -1,
-                        seat: -1
-                      });
-                    } else {
-                      // 保留原始数据，不做修改
-                      setCurrentPlayer(player);
-                    }
-                  } else {
-                    // 没有找到玩家信息，设置默认值
-                    console.log('未找到玩家信息，创建默认值');
+                if (player) {
+                  console.log('初始化当前玩家信息:', player);
+                
+                  // 检查玩家是否有有效的座位号
+                  const hasValidSeat = (player.position !== undefined && player.position !== null && player.position >= 0) ||
+                                      (player.seat !== undefined && player.seat !== null && player.seat >= 0);
+                
+                  // 如果玩家没有有效座位，确保position值为null或-1
+                  if (!hasValidSeat) {
+                    console.log('玩家未入座，设置position为-1');
                     setCurrentPlayer({
-                      username: currentUser,
-                      chips: 0,
+                    ...player,
                       position: -1,
                       seat: -1
-                      });
-                    }
-                }
+                    });
+                  } else {
+                    // 保留原始数据，不做修改
+                    setCurrentPlayer(player);
+                  }
+                } else {
+                  // 没有找到玩家信息，设置默认值
+                  console.log('未找到玩家信息，创建默认值');
+                  setCurrentPlayer({
+                    username: currentUser,
+                    chips: 0,
+                    position: -1,
+                    seat: -1
+                    });
+                  }
               }
-              
-              // 移除一次性监听器
-              websocketService.removeEventListener('gameState', initialGameStateHandler);
-            };
-            
-            // 添加一次性游戏状态监听器
-            websocketService.addEventListener('gameState', initialGameStateHandler);
-          } catch (error) {
-            console.error('设置初始游戏状态监听器失败:', error);
-            enqueueSnackbar('准备接收游戏状态失败，请刷新页面重试', { 
-              variant: 'error'
-            });
-          }
-        })
-        .catch(error => {
-          console.error('WebSocket连接失败:', error);
-          console.error('详细错误信息:', error.message);
-          if (error.stack) {
-            console.error('错误堆栈:', error.stack);
-          }
-          setLoading(false);
-          
-          // 检查是否是房间成员资格错误
-          if (error.message && error.message.includes('not in room')) {
-            enqueueSnackbar(`无法加入房间：${error.message}`, {
-              variant: 'error',
-              autoHideDuration: 5000,
-              onClose: () => {
-                // 如果不是房间成员则返回房间列表
-                navigate('/rooms');
-              }
-            });
-          } else if (error.message && error.message.includes('超时')) {
-            // 如果是超时错误，但WebSocket实际可能已连接
-            if (websocketService.isConnected) {
-              console.log('WebSocket显示已连接，尝试继续操作...');
-              enqueueSnackbar('连接超时，但服务器可能已响应，尝试继续...',{
-                variant: 'warning',
-                autoHideDuration: 3000
-              });
-              // 不要导航离开，让用户尝试继续操作
-            } else {
-              enqueueSnackbar('连接服务器超时，请检查网络后重试', {
-                variant: 'error',
-                autoHideDuration: 5000
-              });
             }
+            
+            // 移除一次性监听器
+            websocketService.removeEventListener('gameState', initialGameStateHandler);
+          };
+          
+          // 添加一次性游戏状态监听器
+          websocketService.addEventListener('gameState', initialGameStateHandler);
+        } catch (error) {
+          console.error('设置初始游戏状态监听器失败:', error);
+          enqueueSnackbar('准备接收游戏状态失败，请刷新页面重试', { 
+            variant: 'error'
+          });
+        }
+      })
+      .catch(error => {
+        console.error('WebSocket连接失败:', error);
+        console.error('详细错误信息:', error.message);
+        if (error.stack) {
+          console.error('错误堆栈:', error.stack);
+        }
+        setLoading(false);
+        
+        // 检查是否是房间成员资格错误
+        if (error.message && error.message.includes('not in room')) {
+          enqueueSnackbar(`无法加入房间：${error.message}`, {
+            variant: 'error',
+            autoHideDuration: 5000,
+            onClose: () => {
+              // 如果不是房间成员则返回房间列表
+              navigate('/rooms');
+            }
+          });
+        } else if (error.message && error.message.includes('超时')) {
+          // 如果是超时错误，但WebSocket实际可能已连接
+          if (websocketService.isConnected) {
+            console.log('WebSocket显示已连接，尝试继续操作...');
+            enqueueSnackbar('连接超时，但服务器可能已响应，尝试继续...',{
+              variant: 'warning',
+              autoHideDuration: 3000
+            });
+            // 不要导航离开，让用户尝试继续操作
           } else {
-            // 其他连接错误
-            enqueueSnackbar('游戏连接失败，请刷新页面重试', { 
+            enqueueSnackbar('连接服务器超时，请检查网络后重试', {
               variant: 'error',
               autoHideDuration: 5000
             });
           }
-        });
+        } else {
+          // 其他连接错误
+          enqueueSnackbar('游戏连接失败，请刷新页面重试', { 
+            variant: 'error',
+            autoHideDuration: 5000
+          });
+        }
+      });
     
     // 添加更多调试来检查所有事件监听器
     console.log('正在注册的事件监听器:',
@@ -1690,6 +1704,38 @@ const GameTable = () => {
       
       // 提取错误消息文本
       const errorMsg = error.message || '';
+      
+      // 处理Room not found错误
+      if (errorMsg === 'Room not found') {
+        console.error('房间已解散，自动退出到房间列表');
+        enqueueSnackbar('该房间已解散，将返回房间列表', {
+          variant: 'error',
+          autoHideDuration: 3000
+        });
+        
+        // 主动断开WebSocket连接
+        websocketService.disconnect(true);
+        
+        // 立即导航到房间列表
+        navigate('/rooms');
+        return;
+      }
+      
+      // 处理最大重连次数错误
+      if (errorMsg === '达到最大重连次数，放弃连接') {
+        console.error('WebSocket重连失败，自动退出到房间列表');
+        enqueueSnackbar('连接服务器失败，将返回房间列表', {
+          variant: 'error',
+          autoHideDuration: 3000
+        });
+        
+        // 主动断开WebSocket连接
+        websocketService.disconnect(true);
+        
+        // 立即导航到房间列表
+        navigate('/rooms');
+        return;
+      }
       
       // 处理认证错误
       if (errorMsg === '认证失败，请重新登录' || 
@@ -2181,6 +2227,7 @@ const GameTable = () => {
       }
 
       // 确保游戏处于活动状态且有当前玩家
+      // 注意：即使在暂停状态下也继续显示倒计时
       if (newState?.gamePhase && 
           newState.gamePhase !== 'WAITING' && 
           newState.gamePhase !== 'SHOWDOWN' &&
@@ -2699,7 +2746,12 @@ const GameTable = () => {
           }}
           players={gameState.players}
           currentUser={currentUser}
-          communityCards={(gameState.game && gameState.game.community_cards) || []}
+          communityCards={
+            // 只在游戏进行中且不是暂停状态时显示公共牌
+            (gameState.status === 'playing' && gameState.status !== 'paused') ? 
+            (gameState.game && gameState.game.community_cards) || [] : 
+            []
+          }
           gamePhase={gameState.gamePhase || (gameState.game && gameState.game.game_phase) || 'WAITING'}
           status={gameState.status || (gameState.game && gameState.game.state) || 'waiting'}
           pot={gameState.pot || (gameState.game && gameState.game.total_pot) || 0}
@@ -2713,8 +2765,11 @@ const GameTable = () => {
           loading={loading}
         />
         
-        {/* 添加当前玩家手牌区域 - 仅在游戏开始后显示 */}
-        {gameState.status === 'playing' && playerHand && playerHand.length > 0 && (
+        {/* 添加当前玩家手牌区域 - 仅在游戏开始后且不是暂停状态时显示 */}
+        {gameState.status === 'playing' && 
+         gameState.status !== 'paused' && 
+         playerHand && 
+         playerHand.length > 0 && (
           <Box sx={{
             position: 'absolute',
             bottom: '20px',  // 调低位置与头像底部对齐
@@ -2835,11 +2890,23 @@ const GameTable = () => {
           }, [seatDisplayData])}
 
         {seatDisplayData.map((seatData) => {
-          
+          // 在游戏暂停时清理思考进度条和手牌
+          const isPaused = gameState.status === 'paused';
+          const cleanedSeatData = isPaused ? {
+            ...seatData,
+            turnTimeRemaining: 0,
+            turnTimeLimit: 0,
+            isTurn: false,
+            player: seatData.player ? {
+              ...seatData.player,
+              hand: [] // 清空手牌
+            } : null
+          } : seatData;
+
           return (
           <Seat
             key={seatData.id}
-            seatData={seatData}
+            seatData={cleanedSeatData}
             onSitDown={() => handleSeatSelect(seatData.position)}
             onBuyIn={() => {
               setSelectedSeat(seatData.position);
@@ -2851,15 +2918,17 @@ const GameTable = () => {
               setChangeSeatDialogOpen(true);
             }}
             isYourTurn={
-                seatData.isTurn || 
-                (gameState.turnPlayerId === seatData.player?.id &&
-                seatData.player?.username === currentUser)
+                !isPaused && (
+                  cleanedSeatData.isTurn || 
+                  (gameState.turnPlayerId === cleanedSeatData.player?.id &&
+                  cleanedSeatData.player?.username === currentUser)
+                )
             }
             currentUser={currentUser}
-              showCards={showCards}
-              gameState={gameState}
-              turnTimeRemaining={seatData.turnTimeRemaining}
-              turnTimeLimit={seatData.turnTimeLimit}
+            showCards={showCards && !isPaused}
+            gameState={gameState}
+            turnTimeRemaining={cleanedSeatData.turnTimeRemaining}
+            turnTimeLimit={cleanedSeatData.turnTimeLimit}
           />
           );
         })}

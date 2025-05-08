@@ -125,7 +125,7 @@ class RoomManager:
             
         try:
             # 导入ws_manager
-            from src.game_routes import ws_manager
+            from src.websocket_manager import ws_manager
             
             # 构建通知消息
             message_type = "room_expired" if is_expired else "room_expiring"
@@ -157,7 +157,7 @@ class RoomManager:
                     import asyncio
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
-                    loop.run_until_complete(ws_manager.send_to_user(username, notification))
+                    loop.run_until_complete(ws_manager.send_personal_message(notification, username))
                     loop.close()
                     print(f"Sent {message_type} notification to player: {username}")
                 except Exception as user_error:

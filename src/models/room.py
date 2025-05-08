@@ -408,6 +408,9 @@ class Room:
             # 更新最后活动时间
             self.update_activity_time()
             
+            # 检查是否可以继续游戏
+            self.check_and_resume_game()
+            
             return {
                 "success": True, 
                 "message": f"买入成功，总筹码: {self.players[username].chips}",
@@ -493,19 +496,8 @@ class Room:
             
             print(f"玩家 {username} 已入座在座位 {seat_index}，同时设置position={seat_index}")
             
-            # 玩家入座成功后
-            if True:
-                # 检查是否处于暂停状态
-                if self.status == "paused":
-                    # 检查活跃玩家数量是否足够重启游戏
-                    active_players_count = len([p for p in self.players.values() if p is not None])
-                    if active_players_count >= 2:  # 至少需要2名玩家
-                        print(f"玩家 {username} 入座后，房间有足够玩家，从暂停状态恢复游戏")
-                        # 将状态设回 playing
-                        self.status = "playing"
-                        # 调用游戏的 schedule_next_hand 方法安排新的一手牌
-                        if self.game:
-                            self.game.schedule_next_hand()
+            # 玩家入座成功后，检查是否可以继续游戏
+            self.check_and_resume_game()
             
             return {
                 "success": True,
@@ -696,7 +688,7 @@ class Room:
             state["remaining_time"] = self.get_remaining_time()
             
             # 如果游戏尚未开始，仍然提供玩家信息
-            if not self.game or self.status != "playing":
+            if not self.game or (self.status != "playing" and self.status != "paused"):
                 # 添加玩家信息
                 state["players"] = []
                 for _, player in self.players.items():
@@ -717,8 +709,8 @@ class Room:
                 game_state = self.game.get_state()
                 state["game"] = game_state
                 
-                # 设置游戏状态标志
-                if self.status == "playing":
+                # 设置游戏状态标志 - 在playing和paused状态下都设置
+                if self.status in ["playing", "paused"]:
                     state["is_game_started"] = True
                     
                     # 计算游戏剩余时间
@@ -847,6 +839,41 @@ class Room:
             return True
         except Exception as e:
             print(f"更新玩家在线状态错误: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def check_and_resume_game(self):
+        """检查是否满足继续游戏的条件，如果满足则恢复游戏
+        
+        Returns:
+            bool: 是否恢复了游戏
+        """
+        try:
+            # 只在暂停状态下检查
+            if self.status != "paused":
+                return False
+                
+            # 计算有筹码的已入座玩家数量
+            players_with_chips = len([
+                p for p in self.players.values() 
+                if hasattr(p, 'chips') and p.chips > 0 and 
+                hasattr(p, 'position') and p.position is not None
+            ])
+            
+            # 检查是否满足继续游戏条件
+            if players_with_chips >= 2:  # 至少需要2名有筹码的玩家
+                print(f"房间有 {players_with_chips} 名已入座且有筹码的玩家，可以继续游戏")
+                # 将状态设回 playing
+                self.status = "playing"
+                # 调用游戏的 schedule_next_hand 方法安排新的一手牌
+                if self.game:
+                    self.game.schedule_next_hand()
+                return True
+                
+            return False
+        except Exception as e:
+            print(f"检查继续游戏条件时出错: {str(e)}")
             import traceback
             traceback.print_exc()
             return False

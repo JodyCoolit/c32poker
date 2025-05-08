@@ -16,84 +16,103 @@ class ConnectionManager:
         # Map of room_id to list of client_ids
         self.room_players: Dict[str, List[str]] = {}
         
-        # Last message sent to each client (for reconnection)
-        self.last_messages: Dict[str, Dict[str, Any]] = {}
-        
-        # Pending messages for disconnected clients
-        self.pending_messages: Dict[str, List[Dict[str, Any]]] = {}
-        
         # Message queue for room broadcasts
         self.message_queues: Dict[str, asyncio.Queue] = {}
         
         # Background tasks
         self.background_tasks: Set[asyncio.Task] = set()
-
-    async def connect(self, websocket: WebSocket, client_id: str):
-        """
-        Accept a new WebSocket connection
-        """
-        await websocket.accept()
-        self.active_connections[client_id] = websocket
-        self.connection_status[client_id] = "connected"
-        print(f"Client {client_id} connected")
         
-        # Initialize empty pending messages list if it doesn't exist
-        if client_id not in self.pending_messages:
-            self.pending_messages[client_id] = []
+        # 跟踪每个玩家当前活跃的房间
+        self.player_active_room: Dict[str, str] = {}  # username -> active_room_id
 
-    async def reconnect(self, websocket: WebSocket, client_id: str) -> bool:
+    async def _handle_connection(self, websocket: WebSocket, client_id: str, room_id: str) -> bool:
         """
-        Handle a reconnecting client
+        处理websocket连接逻辑，用于connect和reconnect的共享代码
         """
         try:
             await websocket.accept()
             self.active_connections[client_id] = websocket
             self.connection_status[client_id] = "connected"
-            print(f"Client {client_id} reconnected")
             
-            # Send any pending messages
-            if client_id in self.pending_messages and self.pending_messages[client_id]:
-                for message in self.pending_messages[client_id]:
-                    try:
-                        await websocket.send_json(message)
-                        print(f"Sent pending message to {client_id}: {message.get('type')}")
-                    except Exception as e:
-                        print(f"Error sending pending message to {client_id}: {str(e)}")
-                
-                # Clear pending messages
-                self.pending_messages[client_id] = []
-            
-            # Send last known state if available
-            if client_id in self.last_messages:
-                try:
-                    await websocket.send_json({
-                        "type": "reconnect_state",
-                        "data": self.last_messages[client_id]
-                    })
-                    print(f"Sent reconnect state to {client_id}")
-                except Exception as e:
-                    print(f"Error sending reconnect state to {client_id}: {str(e)}")
+            # 更新玩家活跃房间
+            self.player_active_room[client_id] = room_id
+            # 确保玩家被添加到房间的玩家列表中
+            self.add_client_to_room(room_id, client_id)
+            print(f"Client {client_id} connected to room {room_id}")
             
             return True
         except Exception as e:
-            print(f"Error reconnecting client {client_id}: {str(e)}")
+            print(f"Error handling connection for client {client_id}: {str(e)}")
             traceback.print_exc()
             return False
 
+    async def connect(self, websocket: WebSocket, client_id: str, room_id: str):
+        """
+        接受一个新的WebSocket连接，并处理单一活跃连接
+        """
+        # 检查玩家是否在其他房间有活跃连接
+        if client_id in self.player_active_room:
+            old_room_id = self.player_active_room[client_id]
+            if old_room_id != room_id:
+                print(f"Client {client_id} already connected to room {old_room_id}, moving to room {room_id}")
+                # 从旧房间移除玩家
+                self.remove_client_from_room(old_room_id, client_id)
+        
+        # 处理连接
+        return await self._handle_connection(websocket, client_id, room_id)
+
+    async def reconnect(self, websocket: WebSocket, client_id: str, room_id: str) -> bool:
+        """
+        处理重新连接的客户端，确保只能重连到之前的活跃房间或指定的新房间
+        """
+        # 检查玩家是否有先前的活跃房间
+        if client_id in self.player_active_room:
+            old_room_id = self.player_active_room[client_id]
+            if old_room_id != room_id:
+                print(f"Client {client_id} attempting to reconnect to different room: old={old_room_id}, new={room_id}")
+                # 允许重连到新房间，但会从旧房间移除
+                self.remove_client_from_room(old_room_id, client_id)
+        
+        # 处理重连
+        return await self._handle_connection(websocket, client_id, room_id)
+
     def disconnect(self, client_id: str):
         """
-        Mark a client as disconnected
+        将客户端标记为断开连接
         """
         if client_id in self.active_connections:
             self.connection_status[client_id] = "disconnected"
             del self.active_connections[client_id]
             print(f"Client {client_id} disconnected")
             
-            # Remove from room_players
+            # 保留玩家活跃房间信息用于重连
+            # 不从player_active_room中删除
+            
+            # 但从房间玩家列表中移除（仍可通过player_active_room重连）
             for room_id, players in self.room_players.items():
                 if client_id in players:
                     players.remove(client_id)
-                    print(f"Removed {client_id} from room {room_id}")
+                    print(f"Marked {client_id} as disconnected from room {room_id}")
+
+    async def force_disconnect(self, client_id: str, reason: str = "Disconnected by server"):
+        """
+        强制断开客户端连接
+        """
+        if client_id in self.active_connections:
+            try:
+                websocket = self.active_connections[client_id]
+                await websocket.close(code=1000, reason=reason)
+                print(f"Forcibly disconnected client {client_id}: {reason}")
+            except Exception as e:
+                print(f"Error forcibly disconnecting client {client_id}: {str(e)}")
+            finally:
+                self.disconnect(client_id)
+                
+    def get_client_room(self, client_id: str) -> Optional[str]:
+        """
+        获取客户端当前所在的活跃房间
+        """
+        return self.player_active_room.get(client_id)
 
     async def send_personal_message(self, message: dict, client_id: str):
         """
@@ -102,16 +121,12 @@ class ConnectionManager:
         if client_id in self.active_connections and self.connection_status.get(client_id) == "connected":
             try:
                 await self.active_connections[client_id].send_json(message)
-                # Store as last message for this client
-                self.store_last_message(client_id, message)
                 return True
             except Exception as e:
                 print(f"Error sending message to {client_id}: {str(e)}")
-                self.add_pending_message(client_id, message)
                 return False
         else:
-            # Store message for when client reconnects
-            self.add_pending_message(client_id, message)
+            # 客户端不在线，消息无法发送
             return False
 
     async def broadcast(self, message: dict):
@@ -123,15 +138,11 @@ class ConnectionManager:
             try:
                 if self.connection_status.get(client_id) == "connected":
                     await connection.send_json(message)
-                    # Store as last message for this client
-                    self.store_last_message(client_id, message)
                 else:
                     disconnected_clients.append(client_id)
-                    self.add_pending_message(client_id, message)
             except Exception as e:
                 print(f"Error broadcasting to {client_id}: {str(e)}")
                 disconnected_clients.append(client_id)
-                self.add_pending_message(client_id, message)
         
         return disconnected_clients
 
@@ -149,15 +160,11 @@ class ConnectionManager:
             if client_id in self.active_connections and self.connection_status.get(client_id) == "connected":
                 try:
                     await self.active_connections[client_id].send_json(message)
-                    # Store as last message for this client
-                    self.store_last_message(client_id, message)
                 except Exception as e:
                     print(f"Error broadcasting to room member {client_id}: {str(e)}")
                     disconnected_clients.append(client_id)
-                    self.add_pending_message(client_id, message)
             else:
                 disconnected_clients.append(client_id)
-                self.add_pending_message(client_id, message)
         
         return disconnected_clients
 
@@ -183,33 +190,6 @@ class ConnectionManager:
             print(f"Removed {client_id} from room {room_id}")
             return True
         return False
-
-    def store_last_message(self, client_id: str, message: dict):
-        """
-        Store the last message sent to a client for reconnection
-        """
-        # Only store state and update messages
-        if message.get("type") in ["game_state", "room_update", "game_update", "player_action"]:
-            if client_id not in self.last_messages:
-                self.last_messages[client_id] = {}
-            
-            message_type = message.get("type")
-            self.last_messages[client_id][message_type] = message.get("data", {})
-
-    def add_pending_message(self, client_id: str, message: dict):
-        """
-        Add a message to the pending queue for a disconnected client
-        """
-        if client_id not in self.pending_messages:
-            self.pending_messages[client_id] = []
-        
-        # Only store important messages
-        if message.get("type") in ["game_state", "room_update", "game_update", "player_action", "chat"]:
-            self.pending_messages[client_id].append(message)
-            
-            # Limit number of pending messages
-            if len(self.pending_messages[client_id]) > 50:
-                self.pending_messages[client_id] = self.pending_messages[client_id][-50:]
 
     async def start_room_broadcaster(self, room_id: str):
         """

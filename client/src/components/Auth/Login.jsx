@@ -7,7 +7,6 @@ import { useAuth } from '../../App';
 const Login = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const from = location.state?.from?.pathname || '/rooms'; // 默认导航到房间列表
     const { isAuthenticated, login } = useAuth(); // 使用认证上下文
     
     const [formData, setFormData] = useState({
@@ -56,40 +55,20 @@ const Login = () => {
             // 使用上下文提供的login函数
             login(userData, response.data.access_token);
             
-            // 登录成功后的处理
-            const handleLoginSuccess = (data) => {
-                // 检查认证令牌信息
-                console.log('登录成功，收到认证信息:', {
-                    hasToken: !!data.access_token,
-                    tokenType: data.token_type,
-                    tokenLength: data.access_token?.length,
-                    responseData: data
-                });
-                
-                // 确保我们有用户名 - 优先使用表单中输入的用户名
-                const username = formData.username;
-                
-                // 保存认证信息到localStorage，确保token字段使用access_token
-                localStorage.setItem('token', data.access_token);
-                localStorage.setItem('userId', data.userId || data.user_id || '');
-                localStorage.setItem('username', username); // 使用表单中输入的用户名
-                
-                // 添加当前时间戳，方便调试
-                localStorage.setItem('loginTime', Date.now().toString());
-                
-                console.log('登录成功，用户信息已保存到localStorage', {
-                    username: username,
-                    userId: data.userId || data.user_id,
-                    tokenLength: data.access_token?.length
-                });
-                
-                // 登录成功后的跳转
-                const { from } = location.state || { from: { pathname: '/rooms' } };
-                navigate(from, { replace: true });
-            };
+            // 保存认证信息到localStorage
+            localStorage.setItem('token', response.data.access_token);
+            localStorage.setItem('userId', response.data.user_id || response.data.userId || '');
+            localStorage.setItem('username', formData.username);
+            localStorage.setItem('loginTime', Date.now().toString());
             
-            // 调用登录成功后的处理函数
-            handleLoginSuccess(response.data);
+            console.log('登录成功，用户信息已保存到localStorage', {
+                username: formData.username,
+                userId: response.data.user_id || response.data.userId,
+                tokenLength: response.data.access_token?.length
+            });
+            
+            // 登录成功后的跳转，直接进入rooms页面
+            navigate('/rooms', { replace: true });
         } catch (err) {
             setError('登录失败，请检查用户名和密码。');
             console.error('Login error:', err.response?.data || err.message);

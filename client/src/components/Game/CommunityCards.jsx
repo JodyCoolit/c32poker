@@ -85,32 +85,17 @@ const CommunityCards = ({
   const isValidGamePhase = (!!gamePhase && validGamePhases.includes(gamePhase)) || status === 'playing';
   
   // 如果不是有效的游戏阶段，不显示组件
-  if (!isValidGamePhase) {
+  if (!isValidGamePhase || communityCards.length === 0) {
     return null;
   }
   
-  // 根据游戏阶段确定应该显示的牌数
-  const getVisibleCardCount = () => {
-    switch (gamePhase) {
-      case 'FLOP':
-        return 3;
-      case 'TURN':
-        return 4;
-      case 'RIVER':
-      case 'SHOWDOWN':
-        return 5;
-      case 'PRE_FLOP':
-      default:
-        // 在PRE_FLOP阶段或状态为playing但阶段未明确时，显示底池但不显示牌
-        return 0;
-    }
-  };
-
-  const visibleCardCount = getVisibleCardCount();
-  const visibleCards = communityCards.slice(0, visibleCardCount);
-  
   // 渲染牌的函数
   const renderCards = () => {
+    // 如果没有公共牌，不渲染任何卡牌
+    if (communityCards.length === 0) {
+      return null;
+    }
+    
     return Array(5).fill(null).map((_, index) => (
       <PlayingCard 
         key={`card-${index}`}

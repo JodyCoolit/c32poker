@@ -33,8 +33,14 @@ const Player = ({
     const hasDiscarded = player.hasDiscarded || false;
     const discardedCard = player.discardedCard || null;
     
+    // 检查游戏是否暂停
+    const isPaused = gameState?.status === 'paused';
+    
     // 检查玩家是否是获胜者
     const isWinner = player.is_winner || false;
+    
+    // 在暂停状态下不显示思考进度条
+    const shouldShowTimer = isActive && !isPaused && turnTimeRemaining > 0;
     
     // Random color from a predefined set for player avatars
     const getPlayerColor = () => {
@@ -220,7 +226,7 @@ const Player = ({
                 )}
                 
                 {/* 思考时间进度条 - 在玩家为当前行动玩家时显示 */}
-                {(isActive || turnTimeRemaining > 0) && (
+                {shouldShowTimer && (
                     <>
                         {/* 添加调试信息，帮助调试进度条 */}
                         <Box sx={{

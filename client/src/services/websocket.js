@@ -31,6 +31,8 @@ class WebSocketService {
         this.updateQueue = {};
         // 添加intentionalDisconnect标志，表示用户是否主动断开连接
         this.intentionalDisconnect = false;
+        // 添加currentRoomId记录当前连接的房间
+        this.currentRoomId = null;
     }
 
     // Generate a simple hash from game state to detect relevant changes
@@ -163,10 +165,28 @@ class WebSocketService {
     }
 
     connect(roomId) {
-        if (this.socket && this.isConnected) {
-            this.disconnect();
+        // 检查是否已连接到其他房间
+        if (this.isConnected && this.currentRoomId && this.currentRoomId !== roomId) {
+            console.log(`已连接到房间 ${this.currentRoomId}，需要断开后再连接到新房间 ${roomId}`);
+            // 先断开现有连接，然后连接到新房间
+            this.disconnect(false).then(() => {
+                this._connectToRoom(roomId);
+            });
+            return;
         }
-
+        
+        // 如果已连接但是同一房间，无需重复连接
+        if (this.isConnected && this.currentRoomId === roomId) {
+            console.log(`已经连接到房间 ${roomId}，无需重新连接`);
+            return;
+        }
+        
+        // 没有连接或连接到相同房间，直接连接
+        this._connectToRoom(roomId);
+    }
+    
+    // 实际建立WebSocket连接的内部方法
+    _connectToRoom(roomId) {
         const token = localStorage.getItem('token');
         const username = localStorage.getItem('username');
         
@@ -187,11 +207,17 @@ class WebSocketService {
         
         // 确保token正确编码且不为undefined
         const encodedToken = token ? encodeURIComponent(token) : '';
-        const targetRoomId = roomId || 'default';
+        const targetRoomId = roomId;
         const wsUrl = `${wsBaseUrl}/ws/game/${targetRoomId}?token=${encodedToken}`;
+        
+        // 更新当前房间ID
+        this.currentRoomId = targetRoomId;
         
         // 添加连接URL调试
         console.log(`连接WebSocket URL: ${wsUrl.substring(0, wsUrl.indexOf('?'))}?token=******`);
+        
+        // 重置intentionalDisconnect标志
+        this.intentionalDisconnect = false;
 
         try {
             console.log(`Connecting to WebSocket for room ${targetRoomId}`);
@@ -235,7 +261,7 @@ class WebSocketService {
                         // If token is expired, we could try to refresh it here
                         this._notifyListeners('error', { 
                             message: '认证失败，请重新登录',
-                code: event.code,
+                            code: event.code,
                             type: 'auth'
                         });
                         
@@ -260,8 +286,8 @@ class WebSocketService {
                 // Stop heartbeat
                 this._stopHeartbeat();
                 
-                // Attempt reconnection only if not an auth error or room access error
-                if (event.code !== 1008 && event.code !== 403) {
+                // Attempt reconnection only if not an auth error or room access error and not intentional disconnect
+                if (event.code !== 1008 && event.code !== 403 && !this.intentionalDisconnect) {
                     this._attemptReconnect(targetRoomId);
                 }
             };
@@ -275,15 +301,19 @@ class WebSocketService {
             };
 
             this.socket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('Received WebSocket message:', data.type);
+                const data = JSON.parse(event.data);
+                console.group('WebSocket Message Received');
+                console.log('Message Type:', data.type);
+                console.log('Room ID:', data.room_id);
+                console.log('Room Name:', data.room_state?.name);
+                console.log('Full Data:', data);
+                console.groupEnd();
 
+                try {                    
                     // Extract roomId from data if available
                     const messageRoomId = data.data?.game_state?.room_id || 
                                   data.data?.room_id || 
-                                  targetRoomId || 
-                                  'default';
+                                  targetRoomId
                     
                     switch (data.type) {
                         case 'game_state':
@@ -358,7 +388,7 @@ class WebSocketService {
         }
     }
 
-    disconnect(intentional = false) {
+    disconnect(intentional = true) {
         this._stopHeartbeat();
         
         // 设置intentionalDisconnect标志
@@ -374,8 +404,12 @@ class WebSocketService {
                     console.log('WebSocket连接已关闭');
                     this.socket = null;
                     this.isConnected = false;
+                    // 保存一个临时变量，记录断开的是哪个房间
+                    const disconnectedRoomId = this.currentRoomId;
+                    // 清除当前房间ID
+                    this.currentRoomId = null;
                     // 通知连接已关闭
-                    this._notifyListeners('disconnect', { intentional });
+                    this._notifyListeners('disconnect', { intentional, roomId: disconnectedRoomId });
                     resolve(true);
                 };
                 
@@ -394,13 +428,16 @@ class WebSocketService {
                         console.log('WebSocket关闭超时，强制断开');
                         this.socket = null;
                         this.isConnected = false;
-                        this._notifyListeners('disconnect', { intentional });
+                        const disconnectedRoomId = this.currentRoomId;
+                        this.currentRoomId = null;
+                        this._notifyListeners('disconnect', { intentional, roomId: disconnectedRoomId });
                         resolve(true);
                     }
                 }, 1000);
             } else {
                 console.log('WebSocket已经断开连接');
                 this.isConnected = false;
+                this.currentRoomId = null;
                 resolve(true);
             }
         });

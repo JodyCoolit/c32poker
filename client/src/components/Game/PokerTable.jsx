@@ -204,17 +204,19 @@ const PokerTable = ({
             minWidth: '280px',
           }}
         >
-          {/* Waiting content only shown when gamePhase is WAITING and status is not playing */}
-          {extractedGamePhase === 'WAITING' && status !== 'playing' && (
+          {/* Waiting content only shown when gamePhase is WAITING or status is paused */}
+          {(extractedGamePhase === 'WAITING' || status === 'paused') && (
             <>
               <Typography variant="h6" sx={{ color: 'white', mb: 1, fontWeight: 'bold' }}>
-                等待游戏开始...
+                {status === 'paused' ? '游戏已暂停' : '等待游戏开始...'}
               </Typography>
               
               <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1, textAlign: 'center' }}>
-                {hasEnoughPlayers 
-                  ? '已有足够的玩家，可以开始游戏' 
-                  : '需要至少2名玩家才能开始游戏'}
+                {status === 'paused' 
+                  ? '等待更多玩家加入后继续游戏'
+                  : hasEnoughPlayers 
+                    ? '已有足够的玩家，可以开始游戏' 
+                    : '需要至少2名玩家才能开始游戏'}
               </Typography>
               
               {/* Show player count */}
@@ -222,8 +224,8 @@ const PokerTable = ({
                 当前玩家: {playersWithChips.length}/8
               </Typography>
               
-              {/* Only show start button to the room owner */}
-              {isRoomOwner && (
+              {/* Only show start button to the room owner when not paused */}
+              {isRoomOwner && status !== 'paused' && (
                 <Button 
                   variant="contained" 
                   color="primary" 

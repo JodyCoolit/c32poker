@@ -21,7 +21,6 @@ from src.websocket_manager import ws_manager
 # Then import route modules
 from src.api_routes import routers as api_routers
 from src.room_routes import router as room_router
-from src.game_routes import router as game_router
 from src.bug_routes import bug_router
 
 # Import the timer update task from game.py
@@ -29,14 +28,11 @@ from src.models.game import timer_update_task
 
 # Inject room_manager instance to route modules
 import src.room_routes as room_routes
-import src.game_routes as game_routes
 room_routes.room_manager = room_manager
-game_routes.room_manager = room_manager
 
 # Authentication settings
 SECRET_KEY = "c32poker_secret_key"  # Match the key in api_routes.py
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24小时，与api_routes.py保持一致
 
 # Define startup event
 async def startup_event():
@@ -83,7 +79,6 @@ for router in api_routers:
     app.include_router(router, prefix="/api")  # API-related routes
 
 app.include_router(room_router, prefix="/api")  # Room-related routes
-app.include_router(game_router, prefix="/api")  # Game-related routes
 app.include_router(bug_router, prefix="/api")  # Bug report routes
 
 # Helper function to check if the provided token is valid
@@ -95,163 +90,6 @@ def verify_token(token: str) -> Optional[str]:
     except Exception as e:
         print(f"Token verification error: {str(e)}")
         return None
-
-# WebSocket Connection Manager
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    try:
-        # Check if this is a reconnection
-        if client_id in ws_manager.connection_status and ws_manager.connection_status[client_id] == "disconnected":
-            print(f"Client {client_id} attempting to reconnect")
-            reconnect_success = await ws_manager.reconnect(websocket, client_id)
-            if not reconnect_success:
-                print(f"Reconnection failed for client {client_id}")
-                return
-            
-            # 处理玩家重新连接 - 更新所有房间中该玩家的online状态
-            room_manager_instance = get_instance()
-            rooms = room_manager_instance.get_all_rooms()
-            for room_id, room in rooms.items():
-                if client_id in room.players:
-                    # 使用room对象的player_online_status方法更新玩家状态
-                    room.player_online_status(client_id, True)
-                    
-                    # 广播房间状态更新
-                    await ws_manager.broadcast_to_room(
-                        room_id,
-                        {
-                            "type": "player_reconnected",
-                            "data": {
-                                "player_id": client_id,
-                                "timestamp": time.time()
-                            }
-                        }
-                    )
-        else:
-            # New connection
-            await ws_manager.connect(websocket, client_id)
-        
-        # Send initial state to the client
-        try:
-            room_manager_instance = get_instance()
-            rooms = room_manager_instance.get_all_rooms()
-            
-            # Find rooms this user is in
-            user_rooms = []
-            for room_id, room in rooms.items():
-                if client_id in room.players:
-                    # Add client to room in websocket manager
-                    ws_manager.add_client_to_room(room_id, client_id)
-                    
-                    user_rooms.append({
-                        "room_id": room_id,
-                        "name": room.name,
-                        "status": room.status
-                    })
-            
-            # Send user's current state
-            if user_rooms:
-                await websocket.send_json({
-                    "type": "connection_state",
-                    "data": {
-                        "rooms": user_rooms
-                    }
-                })
-        except Exception as e:
-            print(f"Error sending initial state: {str(e)}")
-        
-        # Main message loop
-        while True:
-            try:
-                # Check connection status, if disconnected exit the loop
-                if websocket.client_state.value == 2:  # WebSocketState.DISCONNECTED = 2
-                    print(f"WebSocket already disconnected, stopping message loop: {client_id}")
-                    break
-                    
-                data = await websocket.receive_json()
-                
-                # Process message based on type
-                if data.get("type") == "ping":
-                    # Handle ping/heartbeat
-                    await websocket.send_json({
-                        "type": "pong",
-                        "timestamp": time.time()
-                    })
-                
-                elif data.get("type") == "chat":
-                    # Chat message
-                    room_id = data.get("room_id")
-                    username = data.get("username")
-                    message = data.get("message")
-                    
-                    # Broadcast chat message to room
-                    await ws_manager.broadcast_to_room(
-                        room_id,
-                        {
-                            "type": "chat",
-                            "data": {
-                                "player": username,
-                                "message": message,
-                                "timestamp": time.time()
-                            }
-                        }
-                    )
-                
-                elif data.get("type") == "join_room":
-                    # Player joining room
-                    room_id = data.get("room_id")
-                    username = data.get("username")
-                    
-                    # Add client to room in websocket manager
-                    ws_manager.add_client_to_room(room_id, client_id)
-                    
-                    # Broadcast player join notification
-                    await ws_manager.broadcast_to_room(
-                        room_id,
-                        {
-                            "type": "player_joined",
-                            "data": {
-                                "player_id": client_id,
-                                "player_name": username,
-                                "timestamp": time.time()
-                            }
-                        }
-                    )
-                
-            except WebSocketDisconnect:
-                print(f"WebSocket disconnected for client: {client_id}")
-                # 处理玩家断开连接 - 更新所有房间中该玩家的online状态
-                room_manager_instance = get_instance()
-                rooms = room_manager_instance.get_all_rooms()
-                for room_id, room in rooms.items():
-                    if client_id in room.players:
-                        # 使用room对象的player_online_status方法更新玩家状态
-                        room.player_online_status(client_id, False)
-                        
-                        # 广播玩家断开连接通知
-                        await ws_manager.broadcast_to_room(
-                            room_id,
-                            {
-                                "type": "player_disconnected",
-                                "data": {
-                                    "player_id": client_id,
-                                    "timestamp": time.time()
-                                }
-                            }
-                        )
-                
-                ws_manager.disconnect(client_id)
-                break
-            except Exception as e:
-                print(f"Error in websocket message processing: {str(e)}")
-                traceback.print_exc()
-                
-    except WebSocketDisconnect:
-        print(f"WebSocket disconnected for client: {client_id}")
-        ws_manager.disconnect(client_id)
-    except Exception as e:
-        print(f"Unhandled error in websocket endpoint: {str(e)}")
-        traceback.print_exc()
 
 # Add game-specific WebSocket endpoint, requires token authentication
 @app.websocket("/ws/game/{room_id}")
@@ -288,7 +126,7 @@ async def game_websocket_endpoint(
         # Accept the connection
         if client_id in ws_manager.connection_status and ws_manager.connection_status[client_id] == "disconnected":
             # Reconnection
-            reconnect_success = await ws_manager.reconnect(websocket, client_id)
+            reconnect_success = await ws_manager.reconnect(websocket, client_id, room_id)
             if not reconnect_success:
                 print(f"Reconnection failed for client {client_id}")
                 return
@@ -299,7 +137,7 @@ async def game_websocket_endpoint(
                 print(f"Game WebSocket: 更新玩家 {username} 的在线状态为True")
         else:
             # New connection
-            await ws_manager.connect(websocket, client_id)
+            await ws_manager.connect(websocket, client_id, room_id)
         
         # Add client to room in websocket manager
         ws_manager.add_client_to_room(room_id, client_id)
@@ -307,6 +145,10 @@ async def game_websocket_endpoint(
         # Send initial state to client
         game_state = room.get_state() if room else None
         if game_state:
+            await websocket.send_json({
+                "type": "game_state",
+                "data": game_state
+            })
             # Get player's hand if game is active
             player_hand = room.game.get_player_hand(username) if room.game else [None, None]
             
@@ -405,9 +247,6 @@ async def game_websocket_endpoint(
                             # Get updated game state
                             updated_state = room.get_state()
                             
-                            # 添加调试日志，特别关注弃牌操作
-                            # print(f"[BROADCAST][game_update]: Action={action}, Player={username}, GameState={updated_state}")
-                            
                             # Broadcast game update to all players in the room
                             await ws_manager.broadcast_to_room(
                                 room_id,
@@ -501,11 +340,8 @@ async def game_websocket_endpoint(
                                 result = {"success": False, "message": "Missing seat_index parameter"}
                             else:
                                 # Call the room's buy_in method
-                                buy_in_result = room.player_buy_in(username, float(amount), int(seat_index))
-                                result = {
-                                    "success": buy_in_result.get("success", False),
-                                    "message": buy_in_result.get("message", "Buy-in failed")
-                                }
+                                result = room.player_buy_in(username, float(amount), int(seat_index))
+                                print(f"Buy-in result: {result}")
                         
                         elif action == "stand_up":
                             # Call the room's stand_up method

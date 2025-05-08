@@ -1734,7 +1734,7 @@ async def timer_update_task():
             update_count += 1
             
             for room_id, room in active_rooms.items():
-                if room.game and room.status == "playing":
+                if room.game and room.status in ["playing", "paused"]:  # 修改这里以包含paused状态
                     # 获取当前状态的关键信息
                     current_state = {
                         'game_phase': room.game.get_game_phase(),
@@ -1742,7 +1742,8 @@ async def timer_update_task():
                         'pot': room.game.pot,
                         'community_cards': len(room.game.community_cards),
                         'betting_round': room.game.betting_round,
-                        'time_remaining': room.game.get_turn_time_remaining()  # 仍然获取但不用于决定是否更新
+                        'time_remaining': room.game.get_turn_time_remaining(),
+                        'status': room.status  # 添加房间状态到监控中
                     }
                     
                     # 检查是否需要更新:
@@ -1758,7 +1759,10 @@ async def timer_update_task():
                         prev_state = last_states[room_id]
                         
                         # 检查各项状态是否变化并记录原因 - 不包括time_remaining
-                        if current_state['game_phase'] != prev_state['game_phase']:
+                        if current_state['status'] != prev_state['status']:
+                            state_changed = True
+                            change_reason = f"Room status changed: {prev_state['status']} -> {current_state['status']}"
+                        elif current_state['game_phase'] != prev_state['game_phase']:
                             state_changed = True
                             change_reason = f"Game phase changed: {prev_state['game_phase']} -> {current_state['game_phase']}"
                         elif current_state['current_player'] != prev_state['current_player']:
@@ -1773,8 +1777,6 @@ async def timer_update_task():
                         elif current_state['betting_round'] != prev_state['betting_round']:
                             state_changed = True
                             change_reason = f"Betting round changed: {prev_state['betting_round']} -> {current_state['betting_round']}"
-                        
-                        # 不再根据时间变化决定是否发送更新
                     else:
                         change_reason = "First update for this room"
                     
@@ -1791,8 +1793,6 @@ async def timer_update_task():
                         # 获取完整的游戏状态
                         game_state = room.get_state()
                         
-                        # print(f"[BROADCAST][game_update] Room {room_id}: Sending update. Reason: {change_reason}")
-                        
                         # 发送游戏状态更新
                         await ws_manager.broadcast_to_room(room_id, {
                             "type": "game_update",
@@ -1804,7 +1804,7 @@ async def timer_update_task():
                                 "game_state": game_state,
                                 "is_key_update": state_changed,
                                 "timestamp": current_time,
-                                "update_reason": change_reason  # 添加更新原因到发送的数据中
+                                "update_reason": change_reason
                             }
                         })
                         

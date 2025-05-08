@@ -3,7 +3,9 @@ import { Box, Typography } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
 // Styled components for card elements
-const CardContainer = styled(Box)(({ theme, selected, faceUp }) => ({
+const CardContainer = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'faceUp' && prop !== 'selected'
+})(({ theme, selected, faceUp }) => ({
   position: 'relative',
   width: '70px',
   height: '100px',

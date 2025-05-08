@@ -21,8 +21,8 @@ const PrivateRoute = ({ children }) => {
     }
 
     if (!user) {
-        // 将当前路径保存到location state中，便于登录后重定向回来
-        return <Navigate to="/login" state={{ from: location }} replace />;
+        // 直接重定向到登录页，不保存当前路径
+        return <Navigate to="/login" replace />;
     }
 
     return children;

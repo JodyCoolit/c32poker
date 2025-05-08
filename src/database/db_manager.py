@@ -6,6 +6,7 @@ import threading
 import logging
 import functools
 import os
+import atexit
 
 # 配置日志
 logging.basicConfig(
@@ -15,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger("database")
 
 class DBConnectionPool:
-    """简单的SQLite连接池实现"""
+    """改进的SQLite连接池实现，带有超时控制和健康检查"""
     
     def __init__(self, db_path, max_connections=5, timeout=10.0):
         self.db_path = db_path
@@ -23,62 +24,215 @@ class DBConnectionPool:
         self.timeout = timeout
         self.connections = []
         self.lock = threading.Lock()
+        self.connection_attempts = 0
+        self.last_connection_error = None
+        self.last_health_check = time.time()
+        self.health_check_interval = 60.0  # 1分钟检查一次连接健康
         
     def get_connection(self):
-        """获取一个数据库连接"""
-        with self.lock:
-            # 尝试获取一个现有的空闲连接
-            if self.connections:
-                return self.connections.pop()
+        """获取一个数据库连接，带有超时控制"""
+        # 记录获取连接的开始时间和尝试ID
+        start_time = time.time()
+        self.connection_attempts += 1
+        attempt_id = self.connection_attempts
+        max_wait_time = 5.0  # 最多等待5秒
+        
+        logger.debug(f"尝试获取连接 #{attempt_id}")
+        
+        # 循环尝试获取连接，直到成功或超时
+        while time.time() - start_time < max_wait_time:
+            try:
+                with self.lock:
+                    # 尝试获取一个现有的空闲连接，并进行健康检查
+                    if self.connections:
+                        conn = self.connections.pop()
+                        
+                        # 检查连接是否健康
+                        try:
+                            # 简单测试连接是否有效
+                            conn.execute("SELECT 1").fetchone()
+                            logger.debug(f"连接 #{attempt_id}: 从连接池获取空闲连接并通过健康检查")
+                            return conn
+                        except Exception as e:
+                            # 连接不健康，关闭并创建新连接
+                            logger.warning(f"连接 #{attempt_id}: 连接健康检查失败: {str(e)}")
+                            try:
+                                conn.close()
+                            except:
+                                pass
+                    
+                    # 如果没有空闲连接且未达到最大连接数，创建新连接
+                    if len(self.connections) < self.max_connections:
+                        try:
+                            logger.info(f"连接 #{attempt_id}: 创建新连接: {self.db_path}")
+                            # 使用参数化的超时设置创建新连接
+                            conn = sqlite3.connect(self.db_path, timeout=self.timeout)
+                            # 启用外键约束
+                            conn.execute("PRAGMA foreign_keys = ON")
+                            # 设置更安全的等待超时
+                            conn.execute(f"PRAGMA busy_timeout = {int(self.timeout * 1000)}")
+                            return conn
+                        except Exception as e:
+                            self.last_connection_error = e
+                            logger.error(f"连接 #{attempt_id}: 创建数据库连接失败: {str(e)}")
+                            # 抛出异常，允许外部处理
+                            raise
+                    
+                    # 如果已达到最大连接数，等待并重试
+                    logger.warning(f"连接 #{attempt_id}: 已达到最大连接数 {self.max_connections}，等待空闲连接")
             
-            # 如果没有空闲连接且未达到最大连接数，创建新连接
-            if len(self.connections) < self.max_connections:
-                try:
-                    logger.info(f"连接数据库: {self.db_path}")
-                    conn = sqlite3.connect(self.db_path, timeout=self.timeout)
-                    # 启用外键约束
-                    conn.execute("PRAGMA foreign_keys = ON")
-                    return conn
-                except Exception as e:
-                    logger.error(f"创建数据库连接失败: {str(e)}")
-                    raise
+            # 在循环中释放锁，避免死锁
+            except Exception as e:
+                logger.error(f"连接 #{attempt_id}: 获取连接时发生错误: {str(e)}")
+                # 小延迟后重试
+                time.sleep(0.1)
+                continue
             
-            # 如果已达到最大连接数，等待并重试
-            logger.warning(f"已达到最大连接数 {self.max_connections}，等待空闲连接")
+            # 添加随机等待时间，避免多个请求同时重试导致的冲突
+            # 使用随机退避策略
+            import random
+            wait_time = 0.1 + (random.random() * 0.2)
+            time.sleep(wait_time)
             
-        # 释放锁，等待一段时间后重试
-        time.sleep(0.1)
-        return self.get_connection()
+            # 检查是否已经等待太久
+            elapsed = time.time() - start_time
+            if elapsed > max_wait_time - 0.5:  # 预留0.5秒用于最后处理
+                logger.error(f"连接 #{attempt_id}: 获取连接超时（>{max_wait_time}秒），可能存在死锁")
+                break
+        
+        # 如果达到这里，表示获取连接超时
+        raise Exception(f"获取数据库连接超时，已等待{time.time() - start_time:.2f}秒，最大连接数:{self.max_connections}")
     
     def release_connection(self, conn):
-        """归还连接到连接池"""
-        with self.lock:
-            if conn and len(self.connections) < self.max_connections:
-                self.connections.append(conn)
-            else:
-                # 如果连接池已满，关闭连接
+        """归还连接到连接池，包含健康检查"""
+        if not conn:
+            return
+            
+        try:
+            with self.lock:
+                # 进行周期性健康检查
+                current_time = time.time()
+                should_check_health = (current_time - self.last_health_check) > self.health_check_interval
+                
+                if should_check_health:
+                    self.last_health_check = current_time
+                    self._check_pool_health()
+                
+                # 测试连接是否有效
                 try:
-                    if conn:
+                    conn.execute("SELECT 1").fetchone()
+                    
+                    # 如果连接有效且连接池未满，则归还
+                    if len(self.connections) < self.max_connections:
+                        self.connections.append(conn)
+                        logger.debug(f"成功归还连接到连接池，当前连接数: {len(self.connections)}")
+                    else:
+                        # 如果连接池已满，关闭连接
                         conn.close()
+                        logger.debug(f"连接池已满，关闭连接")
                 except Exception as e:
-                    logger.error(f"关闭数据库连接失败: {str(e)}")
+                    # 如果连接已无效，直接关闭
+                    logger.warning(f"归还无效连接，关闭: {str(e)}")
+                    try:
+                        conn.close()
+                    except:
+                        pass
+        except Exception as e:
+            logger.error(f"归还连接到连接池时发生错误: {str(e)}")
+            # 尝试关闭连接，避免泄漏
+            try:
+                conn.close()
+            except:
+                pass
+    
+    def _check_pool_health(self):
+        """检查连接池中所有连接的健康状态"""
+        logger.debug(f"执行连接池健康检查，当前连接数: {len(self.connections)}")
+        healthy_connections = []
+        
+        for conn in self.connections:
+            try:
+                # 测试连接是否有效
+                conn.execute("SELECT 1").fetchone()
+                healthy_connections.append(conn)
+            except Exception as e:
+                logger.warning(f"移除不健康的连接: {str(e)}")
+                try:
+                    conn.close()
+                except:
+                    pass
+        
+        # 更新连接池为健康的连接
+        self.connections = healthy_connections
+        logger.debug(f"健康检查完成，保留 {len(self.connections)} 个健康连接")
+    
+    def close_all(self):
+        """关闭所有连接，在应用退出时调用"""
+        with self.lock:
+            for conn in self.connections:
+                try:
+                    conn.close()
+                except:
+                    pass
+            self.connections = []
+            logger.info("已关闭所有数据库连接")
 
 # 数据库操作装饰器 - 处理连接获取、异常处理和重试
-def db_operation(max_attempts=3, initial_delay=0.1):
+def db_operation(max_attempts=3, initial_delay=0.1, operation_timeout=5.0):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
             attempts = 0
             last_error = None
+            start_time = time.time()
             
             while attempts < max_attempts:
                 conn = None
+                operation_timer = None
+                
                 try:
-                    # 获取连接
+                    # 设置操作超时定时器
+                    operation_timer = threading.Timer(
+                        operation_timeout, 
+                        lambda: logger.error(f"数据库操作超时: {func.__name__}, 参数: {args}, {kwargs}")
+                    )
+                    operation_timer.daemon = True
+                    operation_timer.start()
+                    
+                    # 记录开始获取连接的时间
+                    conn_start_time = time.time()
+                    logger.debug(f"开始获取数据库连接: {func.__name__}")
+                    
+                    # 获取连接，添加最大等待时间（5秒）
+                    conn_timeout = 5.0
+                    conn_timer = threading.Timer(
+                        conn_timeout, 
+                        lambda: logger.error(f"获取数据库连接超时: {func.__name__}, 已等待{conn_timeout}秒")
+                    )
+                    conn_timer.daemon = True
+                    conn_timer.start()
+                    
+                    # 尝试获取连接
                     conn = self.connection_pool.get_connection()
                     
+                    # 取消连接超时定时器
+                    if conn_timer.is_alive():
+                        conn_timer.cancel()
+                    
+                    conn_elapsed = time.time() - conn_start_time
+                    logger.debug(f"获取连接耗时: {conn_elapsed:.3f}秒")
+                    
                     # 调用原始函数，传入连接
+                    logger.debug(f"执行数据库操作: {func.__name__}")
                     result = func(self, conn, *args, **kwargs)
+                    
+                    # 取消操作超时定时器
+                    if operation_timer.is_alive():
+                        operation_timer.cancel()
+                    
+                    elapsed = time.time() - start_time
+                    logger.debug(f"数据库操作完成: {func.__name__}, 耗时: {elapsed:.3f}秒")
+                    
                     return result
                     
                 except sqlite3.OperationalError as e:
@@ -102,16 +256,29 @@ def db_operation(max_attempts=3, initial_delay=0.1):
                     raise
                     
                 finally:
+                    # 取消操作超时定时器（如果仍然活动）
+                    if operation_timer and operation_timer.is_alive():
+                        operation_timer.cancel()
+                    
                     # 确保连接被归还到连接池
                     if conn:
                         try:
+                            logger.debug(f"释放数据库连接: {func.__name__}")
                             self.connection_pool.release_connection(conn)
                         except Exception as e:
                             logger.error(f"归还连接到连接池失败: {str(e)}")
+                    
+                    # 检查总操作时间是否超过允许的最大时间
+                    elapsed = time.time() - start_time
+                    if elapsed > operation_timeout * 1.5:  # 给1.5倍的余量
+                        logger.warning(f"数据库操作耗时过长: {func.__name__}, 已耗时 {elapsed:.3f}秒")
+                        if attempts >= max_attempts - 1:  # 如果是最后一次尝试
+                            break
             
             # 达到最大重试次数后仍然失败
             if last_error:
-                logger.error(f"数据库操作失败，已达到最大重试次数 {max_attempts}: {str(last_error)}")
+                elapsed = time.time() - start_time
+                logger.error(f"数据库操作失败，已达到最大重试次数 {max_attempts}: {str(last_error)}, 总耗时: {elapsed:.3f}秒")
                 raise last_error
                 
         return wrapper
@@ -132,8 +299,29 @@ class DBManager:
         
         # 创建连接池
         self.connection_pool = DBConnectionPool(self.db_path, max_connections=10, timeout=15.0)
+        
+        # 设置进程退出时的清理函数
+        atexit.register(self._cleanup_resources)
+        
+        # 初始化数据库
         self.init_database()
         
+        logger.info("数据库管理器初始化完成")
+    
+    def _cleanup_resources(self):
+        """在进程退出时清理资源"""
+        try:
+            logger.info("正在清理数据库资源...")
+            if hasattr(self, 'connection_pool'):
+                self.connection_pool.close_all()
+            logger.info("数据库资源清理完成")
+        except Exception as e:
+            logger.error(f"清理数据库资源时出错: {str(e)}")
+            
+    def __del__(self):
+        """析构函数，确保资源被释放"""
+        self._cleanup_resources()
+    
     def init_database(self):
         """初始化数据库表结构"""
         conn = None

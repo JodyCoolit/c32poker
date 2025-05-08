@@ -18,7 +18,6 @@ card.py 和 deck.py：扑克牌和牌组模型
 API 路由层：
 api_routes.py：用户认证和账户管理
 room_routes.py：房间创建和管理
-game_routes.py：游戏操作和状态管理
 WebSocket 通信：
 websocket_manager.py：管理WebSocket连接和房间内通信
 main.py：提供 WebSocket 端点，处理实时游戏信息交换

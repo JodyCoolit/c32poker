@@ -82,7 +82,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 async def get_current_user(authorization: Optional[str] = Header(None)):
+    print(f"[DEBUG] 开始验证用户认证: {authorization[:20] if authorization else 'None'}...")
+    
     if not authorization:
+        print("[ERROR] 未提供认证令牌")
         raise HTTPException(
             status_code=401,
             detail="未提供认证令牌",
@@ -91,7 +94,10 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
     
     try:
         token_type, token = authorization.split()
+        print(f"[DEBUG] Token类型: {token_type}")
+        
         if token_type.lower() != "bearer":
+            print(f"[ERROR] 无效的认证类型: {token_type}")
             raise HTTPException(
                 status_code=401,
                 detail="无效的认证类型",
@@ -100,14 +106,12 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
         
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        if username is None:
-            raise HTTPException(
-                status_code=401,
-                detail="无效的认证令牌",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        print(f"[DEBUG] 解码后的用户名: {username}")
+        
         return username
-    except jwt.PyJWTError:
+        
+    except jwt.PyJWTError as e:
+        print(f"[ERROR] JWT解码错误: {str(e)}")
         raise HTTPException(
             status_code=401,
             detail="无效的认证令牌",
@@ -157,21 +161,19 @@ async def refresh_token(user_data: RefreshToken, current_user: str = Depends(get
 # 用户相关路由
 @user_router.get("/{username}", summary="获取用户信息")
 async def get_user_info(username: str, current_user: str = Depends(get_current_user)):
-    # 临时禁用权限检查，用于排除前端登录问题
-    """
+    print(f"[DEBUG] 获取用户信息: username={username}, current_user={current_user}")
     # 权限检查: 只能查询自己的信息或系统管理员
     if current_user != username and current_user != "admin":
         print('获取用户信息 raise', current_user, username)
         raise HTTPException(status_code=403, detail="没有权限查询其他用户信息")
-    """
         
     user_info = db.get_user_info(username)
     if not user_info:
-        print('用户不存在 raise', username)
+        print(f'[ERROR] 用户不存在: {username}')
         raise HTTPException(status_code=404, detail="用户不存在")
     
     # 调试信息
-    print(f"成功获取到用户 {username} 的信息")
+    print(f"[DEBUG] 成功获取到用户 {username} 的信息: {user_info}")
     return user_info
 
 @user_router.put("/{username}", summary="更新用户信息")
