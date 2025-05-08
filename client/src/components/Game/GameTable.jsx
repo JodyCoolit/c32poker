@@ -999,7 +999,7 @@ const GameTable = () => {
     }
     
     // 查找选中座位对应的真实位置
-    const seatData = seatDisplayData.find(seat => seat.position === selectedSeat);
+    const seatData = seatDisplayData.find(seat => seat.realPosition === selectedSeat);
     if (!seatData) {
       console.error(`无法找到座位 ${selectedSeat} 对应的数据`);
       setErrorMessage('座位数据无效');

@@ -477,53 +477,6 @@ class RoomManager:
             
             return True
         return False
-
-    def get_state(self):
-        """获取房间状态"""
-        try:
-            state = {
-                "room_id": self.room_id,
-                "name": self.name,
-                "max_players": self.max_players,
-                "small_blind": self.small_blind,
-                "big_blind": self.big_blind,
-                "status": self.status,
-                "game_duration_hours": self.game_duration_hours,
-                "owner": self.owner
-            }
-            
-            # 计算并添加剩余时间
-            state["remaining_time"] = self.get_remaining_time()
-            
-            # 添加游戏状态
-            if self.game:
-                game_state = self.game.get_state()
-                state["game"] = game_state
-                
-                # 设置游戏状态标志
-                if self.status == "playing":
-                    state["is_game_started"] = True
-                    
-                    # 计算游戏剩余时间
-                    if self.game_start_time and self.game_end_time:
-                        remaining_time = (self.game_end_time - datetime.now()).total_seconds()
-                        state["remaining_time"] = max(0, remaining_time)
-                        state["game_end_time"] = self.game_end_time.isoformat()
-                else:
-                    state["is_game_started"] = False
-            
-            return state
-        except Exception as e:
-            import traceback
-            print(f"Error in Room.get_state: {str(e)}")
-            traceback.print_exc()
-            # Return minimal state to prevent crashes
-            return {
-                "room_id": self.room_id,
-                "name": self.name,
-                "status": self.status,
-                "error": str(e)
-            }
 # 全局单例实例 - 确保所有导入都使用相同的实例
 GLOBAL_ROOM_MANAGER = RoomManager()
 

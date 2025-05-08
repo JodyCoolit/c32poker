@@ -43,7 +43,7 @@ class Room:
     @property
     def is_game_started(self):
         """检查游戏是否已经开始"""
-        return self.game is not None and self.status == "playing"
+        return self.game is not None and self.status in ["playing", "paused"]
 
     @property
     def remaining_time(self):
@@ -710,17 +710,14 @@ class Room:
                 state["game"] = game_state
                 
                 # 设置游戏状态标志 - 在playing和paused状态下都设置
-                if self.status in ["playing", "paused"]:
-                    state["is_game_started"] = True
-                    
+                if self.is_game_started:
                     # 计算游戏剩余时间
                     if hasattr(self, 'game_start_time') and self.game_start_time and hasattr(self, 'game_end_time') and self.game_end_time:
                         import datetime
                         remaining_time = (self.game_end_time - datetime.datetime.now()).total_seconds()
                         state["remaining_time"] = max(0, remaining_time)
                         state["game_end_time"] = self.game_end_time.isoformat()
-                else:
-                    state["is_game_started"] = False
+                state["is_game_started"] = self.is_game_started
             
             return state
         except Exception as e:
