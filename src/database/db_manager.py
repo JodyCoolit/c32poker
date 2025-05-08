@@ -416,18 +416,31 @@ class DBManager:
     @db_operation(max_attempts=3)        
     def get_user_info(self, conn, username):
         """获取用户信息"""
-        c = conn.cursor()
-        c.execute('SELECT username, balance, email, avatar FROM users WHERE username = ?', (username,))
-        result = c.fetchone()
-        
-        if result:
-            return {
-                "username": result[0],
-                "balance": result[1],
-                "email": result[2],
-                "avatar": result[3]
-            }
-        return None
+        try:
+            print(f"[DATABASE][get_user_info] 获取用户信息: username={username}")
+            logger.info(f"获取用户信息: username={username}")
+            
+            c = conn.cursor()
+            c.execute('SELECT username, balance, email, avatar FROM users WHERE username = ?', (username,))
+            result = c.fetchone()
+            
+            if result:
+                user_info = {
+                    "username": result[0],
+                    "balance": result[1],
+                    "email": result[2],
+                    "avatar": result[3]
+                }
+                logger.info(f"成功获取用户 {username} 的信息")
+                return user_info
+            
+            logger.warning(f"用户不存在: {username}")
+            print(f"[DATABASE][get_user_info] 用户不存在: {username}")
+            return None
+        except Exception as e:
+            logger.error(f"获取用户信息时出错: {str(e)}")
+            print(f"[DATABASE][get_user_info] 出错: {str(e)}")
+            raise
     
     @db_operation(max_attempts=3)        
     def update_user_balance(self, conn, username, new_balance):

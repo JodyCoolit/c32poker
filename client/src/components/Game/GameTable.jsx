@@ -788,8 +788,8 @@ const GameTable = () => {
       data.room_state.players.forEach((player, index) => {
         const playerName = player.name || player.username || `玩家${index}`;
         const position = player.position !== undefined ? player.position : 
-                       (player.seat !== undefined ? player.seat : 
-                        player.seat_id !== undefined ? player.seat_id : '未分配');
+                      (player.seat !== undefined ? player.seat : 
+                       player.seat_id !== undefined ? player.seat_id : '未分配');
         
         console.log(`${playerName}: 逻辑位置=${position}, 筹码=${player.chips || 0}`);
         

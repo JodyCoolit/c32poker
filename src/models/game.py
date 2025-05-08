@@ -395,27 +395,27 @@ class Game:
                 print(f"玩家 {player_name} 跟注 {call_amount}")
             elif action == "raise":
                 # 加注操作
-                if amount <= self.current_bet:
-                    print(f"加注金额 {amount} 必须大于当前最大下注 {self.current_bet}")
-                    return {"success": False, "message": f"加注金额必须大于当前最大下注 {self.current_bet}"}
+                # 计算玩家当前下注后的总下注金额
+                total_bet_amount = current_player["bet_amount"] + amount
+                
+                if total_bet_amount <= self.current_bet:
+                    print(f"加注总金额 {total_bet_amount} 必须大于当前最大下注 {self.current_bet}")
+                    return {"success": False, "message": f"加注总金额必须大于当前最大下注 {self.current_bet}"}
                 
                 # 检查最小加注规则
                 min_raise = self.current_bet * 2 if self.current_bet > 0 else self.big_blind
-                if amount < min_raise and amount < current_player["chips"] + current_player["bet_amount"]:
-                    print(f"加注金额 {amount} 必须至少为 {min_raise}")
-                    return {"success": False, "message": f"加注金额必须至少为 {min_raise}"}
+                if total_bet_amount < min_raise and amount < current_player["chips"]:
+                    print(f"加注总金额 {total_bet_amount} 必须至少为 {min_raise}")
+                    return {"success": False, "message": f"加注总金额必须至少为 {min_raise}"}
                 
-                if amount > current_player["chips"] + current_player["bet_amount"]:
-                    print(f"玩家筹码不足，最多能下注 {current_player['chips'] + current_player['bet_amount']}")
-                    return {"success": False, "message": f"玩家筹码不足，最多能下注 {current_player['chips'] + current_player['bet_amount']}"}
-                
-                # 计算实际加注金额
-                actual_amount = amount - current_player["bet_amount"]
+                if amount > current_player["chips"]:
+                    print(f"玩家筹码不足，最多能新增下注 {current_player['chips']}")
+                    return {"success": False, "message": f"玩家筹码不足，最多能新增下注 {current_player['chips']}"}
                 
                 # 更新玩家筹码和下注金额
-                current_player["chips"] -= actual_amount
-                current_player["bet_amount"] = amount
-                self.current_bet = amount
+                current_player["chips"] -= amount
+                current_player["bet_amount"] += amount
+                self.current_bet = total_bet_amount
                 
                 # 检查玩家是否已经没有筹码（全下）
                 if current_player["chips"] == 0:
@@ -428,7 +428,7 @@ class Game:
                         self.player_acted[position] = False
                         
                 self.player_acted[self.current_player_idx] = True
-                print(f"玩家 {player_name} 加注到 {amount}")
+                print(f"玩家 {player_name} 加注到 {self.current_bet}")
             
             elif action == "all-in":
                 # 全下操作
@@ -436,7 +436,6 @@ class Game:
                 
                 # 更新下注金额
                 current_player["chips"] = 0
-                all_in_increase = all_in_amount - current_player["bet_amount"]
                 current_player["bet_amount"] = all_in_amount
                 current_player["is_all_in"] = True
                 print(f"玩家 {player_name} 已全下")
@@ -457,11 +456,17 @@ class Game:
             
             # 检查是否所有剩余活跃玩家都已全下
             if self.check_all_in_situation():
-                print("所有剩余玩家都已全下，直接进入摊牌阶段")
+                print("所有剩余玩家都已全下且都已经行动过，直接进入摊牌阶段")
+                # 打印详细信息帮助调试
+                for pos in self.active_players:
+                    player = self.players[pos]
+                    print(f"  玩家 {player['name']} (位置 {pos}): 已行动={self.player_acted.get(pos, False)}, " +
+                          f"全下状态={player.get('is_all_in', False)}, 剩余筹码={player.get('chips', 0)}")
+                
                 # 发放剩余公共牌并结束游戏
                 self.betting_round = 4
                 self.finish_hand()
-                return {"success": True, "message": "所有玩家都已全下，进入摊牌阶段"}
+                return {"success": True, "message": "所有玩家都已全下或者只有一个玩家还有筹码，进入摊牌阶段"}
             
             # 检查当前玩家是否是最后一个需要行动的玩家
             # 在加注后，只有一位玩家需要行动的情况下
@@ -623,18 +628,32 @@ class Game:
             if not self.active_players:
                 print("没有玩家可以行动")
                 return
-                
+            
+            print(f"准备移动到下一个玩家 - 当前活跃玩家: {self.active_players}")    
             # 当前玩家弃牌后，当前玩家在active_players里的index已经指向了下一个活跃玩家
             if current_idx is not None:
                 # 检查current_idx是否超出了活跃玩家列表范围（当最后一个玩家弃牌时会发生）
                 if current_idx < len(self.active_players):
                     self.current_player_idx = self.active_players[current_idx]
+                    # 检查该玩家是否全下，如果是则继续递归查找下一个可行动玩家
+                    if self.players[self.current_player_idx].get("is_all_in", False):
+                        print(f"玩家 {self.current_player_idx} 已全下，继续查找下一个玩家")
+                        self.advance_player(current_idx + 1 if current_idx + 1 < len(self.active_players) else 0)
+                    else:
+                        print(f"设置当前玩家为 {self.current_player_idx} (弃牌后)")
                 else:
                     # 如果超出范围，则设置为第一个活跃玩家（循环到列表开头）
-                    self.current_player_idx = self.active_players[0]
-                    print(f"current_idx {current_idx} 超出了活跃玩家列表范围，设置为第一个活跃玩家: {self.current_player_idx}")
+                    next_player_idx = self.active_players[0]
+                    self.current_player_idx = next_player_idx
+                    print(f"current_idx {current_idx} 超出了活跃玩家列表范围，设置为第一个活跃玩家: {next_player_idx}")
+                    
+                    # 检查该玩家是否全下，如果是则继续递归查找下一个可行动玩家
+                    if self.players[next_player_idx].get("is_all_in", False):
+                        print(f"玩家 {next_player_idx} 已全下，继续查找下一个玩家")
+                        self.advance_player(1)
             else:
                 current_idx = self.active_players.index(self.current_player_idx)
+                print(f"当前玩家在活跃列表中的索引: {current_idx}")
                 
                 # 找到下一个非全下的活跃玩家
                 for _ in range(len(self.active_players)):
@@ -643,9 +662,10 @@ class Game:
                     
                     # 如果玩家已经全下，继续找下一个
                     if self.players[candidate_player_idx].get("is_all_in", False):
+                        print(f"玩家 {candidate_player_idx} 已全下，继续查找")
                         current_idx = next_idx
                         continue
-                        
+                    
                     # 找到了非全下的玩家
                     self.current_player_idx = candidate_player_idx
                     break
@@ -660,7 +680,7 @@ class Game:
                 self.current_player = None
                 print(f"警告: 当前玩家位置 {self.current_player_idx} 不存在于玩家字典中")
         except Exception as e:
-            print(f"Error in Game.advance_player: {str(e)}")
+            print(f"Error in advance_player: {str(e)}")
             traceback.print_exc()
             # 出错时不改变任何状态
         
@@ -1707,11 +1727,48 @@ class Game:
             return []
 
     def check_all_in_situation(self):
-        # 优化检测逻辑：检查活跃玩家中有筹码的玩家数量
+        """检查是否所有玩家都已经全下或者弃牌
+        
+        修复逻辑：
+        1. 必须确保所有玩家都已经行动过（player_acted为True）
+        2. 并且活跃玩家中最多只有一个玩家还有筹码
+
+        Returns:
+            bool: 如果所有活跃玩家都已全下或者最多只有一个玩家有筹码，返回True
+        """
+        print("\n检查是否满足提前摊牌条件:")
+        
+        # 首先检查是否所有活跃玩家都已经行动过
+        all_acted = self.check_all_players_acted()
+        print(f"条件1 - 所有玩家都已行动过: {all_acted}")
+        if not all_acted:
+            print("  不满足提前摊牌条件：还有玩家未行动")
+            return False
+            
+        # 然后检查活跃玩家中有筹码的玩家数量
         active_players_with_chips = [
             pos for pos in self.active_players 
             if self.players[pos].get("chips", 0) > 0 and not self.players[pos].get("folded", False)
         ]
+        
+        # 打印每个活跃玩家的状态
+        print(f"当前活跃玩家: {self.active_players}")
+        for pos in self.active_players:
+            player = self.players[pos]
+            has_chips = player.get("chips", 0) > 0
+            is_folded = player.get("folded", False)
+            is_all_in = player.get("is_all_in", False)
+            print(f"  玩家 {player.get('name', f'位置{pos}')} (位置 {pos}): " +
+                  f"筹码={player.get('chips', 0)}, 弃牌={is_folded}, 全下={is_all_in}")
+        
+        print(f"条件2 - 最多只有一名活跃玩家还有筹码: {len(active_players_with_chips) <= 1}")
+        if len(active_players_with_chips) <= 1:
+            print(f"  满足提前摊牌条件: 有筹码的活跃玩家只有 {len(active_players_with_chips)} 名")
+        else:
+            print(f"  不满足提前摊牌条件: 还有 {len(active_players_with_chips)} 名活跃玩家有筹码")
+            print(f"  有筹码的活跃玩家: {active_players_with_chips}")
+        
+        # 只有当所有玩家都行动过，且最多只有一个玩家还有筹码时，才进入摊牌
         return len(active_players_with_chips) <= 1
 
 async def timer_update_task():
