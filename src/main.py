@@ -225,6 +225,24 @@ async def game_websocket_endpoint(
                             if action == "discard":
                                 # 使用专门的方法处理弃牌
                                 result = room.game.handle_discard(player_position, card_index)
+                            elif action == "show_card":
+                                # 验证当前是否为摊牌阶段
+                                if room.game.get_game_phase() != "SHOWDOWN":
+                                    result = {"success": False, "message": "Cannot show cards outside of showdown phase"}
+                                else:
+                                    # 获取玩家手牌
+                                    player_hand, _ = room.game.get_player_hand(username)
+                                    if not player_hand or card_index >= len(player_hand):
+                                        result = {"success": False, "message": "Invalid card index"}
+                                    else:
+                                        # 获取要显示的牌
+                                        card_to_show = player_hand[card_index]
+                                        # 设置成功结果
+                                        result = {
+                                            "success": True, 
+                                            "message": "Card shown successfully",
+                                            "card_data": card_to_show
+                                        }
                             elif not is_current_player:
                                 result = {"success": False, "message": "Not your turn to act"}
                             else:

@@ -307,7 +307,7 @@ export const gameService = {
     },
     
     // 修改playerAction方法，完全使用WebSocket进行通信
-    playerAction: (roomId, action, amount = 0, cards = null) => {
+    playerAction: (roomId, action, amount = 0, cards = null, card_index = null) => {
         // Log the request parameters
         console.log(`Player action: ${action}, amount: ${amount}, cards: ${cards}, room: ${roomId}`);
         
@@ -339,6 +339,9 @@ export const gameService = {
                     break;
                 case 'discard':
                     success = websocketService.discard(cards);
+                    break;
+                case 'show_card':
+                    success = websocketService.showCard(card_index);
                     break;
                 case 'start_game':
                     success = websocketService.startGame(roomId);

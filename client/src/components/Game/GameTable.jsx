@@ -1412,7 +1412,9 @@ const GameTable = () => {
       'call': '跟注',
       'raise': '加注',
       'bet': '下注',
-      'all-in': '全押'
+      'all-in': '全押',
+      'show_card': '展示牌',
+      'discard': '弃掉一张牌'
     };
     return actionMap[action] || action;
   };
@@ -1769,6 +1771,31 @@ const GameTable = () => {
         // 播放弃牌音效
         soundEffects.playFoldSound();
       }
+      
+      // 处理展示牌动作
+      if (updateData.action === 'show_card') {
+        console.group('检测到展示牌操作');
+        console.log('玩家:', updateData.player);
+        console.log('展示牌数据:', updateData.card_data);
+        console.groupEnd();
+        
+        // 播放翻牌音效
+        soundEffects.playCardFlipSound();
+        
+        // 如果有卡牌数据，显示通知
+        if (updateData.card_data) {
+          const playerName = updateData.player || '玩家';
+          const cardValue = updateData.card_data.value || '';
+          const cardSuit = updateData.card_data.suit || '';
+          
+          setNotification({
+            open: true,
+            message: `${playerName} 展示了 ${cardSuit}${cardValue}`,
+            severity: 'info',
+            autoHideDuration: 3000
+          });
+        }
+      }
     };
 
     // 注册gameUpdate事件监听器
@@ -2109,6 +2136,14 @@ const GameTable = () => {
   
   // 处理牌的点击事件
   const handleCardClick = (index) => {
+    // 检查是否在摊牌阶段
+    if (gameState.gamePhase === 'SHOWDOWN') {
+      // 在摊牌阶段，点击卡牌进行展示
+      handleShowCard(index);
+      return;
+    }
+
+    // 非摊牌阶段的正常弃牌逻辑
     if (playerHand && playerHand.length === 3) {
       // 如果已经选中了这张牌，则取消选中
       if (selectedCardIndex === index) {
@@ -2143,6 +2178,39 @@ const GameTable = () => {
       setNotification({
         open: true,
         message: '弃牌失败，请重试',
+        severity: 'error',
+        autoHideDuration: 3000
+      });
+    }
+  };
+  
+  // 处理展示卡牌
+  const handleShowCard = async (index) => {
+    // 检查是否在摊牌阶段
+    if (gameState.gamePhase !== 'SHOWDOWN') {
+      console.log('当前不是摊牌阶段，无法展示卡牌');
+      return;
+    }
+    
+    try {
+      console.log(`展示卡牌，索引: ${index}`);
+      await websocketService.showCard(index);
+      
+      // 播放翻牌音效
+      soundEffects.playCardFlipSound();
+      
+      // 展示成功通知
+      setNotification({
+        open: true,
+        message: '已展示选中的卡牌',
+        severity: 'success',
+        autoHideDuration: 2000
+      });
+    } catch (error) {
+      console.error('展示卡牌失败:', error);
+      setNotification({
+        open: true,
+        message: '展示卡牌失败，请重试',
         severity: 'error',
         autoHideDuration: 3000
       });
@@ -2766,12 +2834,18 @@ const GameTable = () => {
                     key={index} 
                     sx={{ 
                       position: 'relative',
-                      cursor: playerHand.length === 3 ? 'pointer' : 'default',
+                      cursor: playerHand.length === 3 || gameState.gamePhase === 'SHOWDOWN' ? 'pointer' : 'default',
                       transform: selectedCardIndex === index ? 'translateY(-10px)' : 'none',
                       transition: 'transform 0.2s ease',
-                      boxShadow: selectedCardIndex === index ? '0 0 10px 3px rgba(255, 215, 0, 0.7)' : 'none',
+                      boxShadow: selectedCardIndex === index ? '0 0 10px 3px rgba(255, 215, 0, 0.7)' : 
+                              (gameState.gamePhase === 'SHOWDOWN' ? '0 0 8px 2px rgba(124, 179, 66, 0.6)' : 'none'),
+                      '&:hover': {
+                        transform: (playerHand.length === 3 || gameState.gamePhase === 'SHOWDOWN') ? 'translateY(-5px) scale(1.03)' : 'none',
+                        boxShadow: (playerHand.length === 3 || gameState.gamePhase === 'SHOWDOWN') ? 
+                                  '0 0 12px 4px rgba(124, 179, 66, 0.8)' : 'none',
+                      },
                     }}
-                    onClick={() => playerHand.length === 3 && handleCardClick(index)}
+                    onClick={() => (playerHand.length === 3 || gameState.gamePhase === 'SHOWDOWN') && handleCardClick(index)}
                   >
                     <PlayingCard 
                       card={card.display || card} 
@@ -2821,6 +2895,25 @@ const GameTable = () => {
                 >
                   弃掉选中的牌
                 </Button>
+              )}
+              
+              {/* 摊牌阶段提示 */}
+              {gameState.gamePhase === 'SHOWDOWN' && (
+                <Typography 
+                  variant="caption" 
+                  sx={{
+                    display: 'block',
+                    textAlign: 'center',
+                    mt: 1,
+                    color: '#a5d6a7',
+                    fontWeight: 'bold',
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    borderRadius: 1,
+                    p: 0.5
+                  }}
+                >
+                  点击卡牌可以展示给其他玩家
+                </Typography>
               )}
             </Box>
           </Box>

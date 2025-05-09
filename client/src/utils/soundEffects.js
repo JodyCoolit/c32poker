@@ -246,6 +246,14 @@ class SoundEffectsManager {
   }
   
   /**
+   * 播放翻牌音效 (用于展示牌)
+   * @returns {Promise} 播放完成的Promise
+   */
+  playCardFlipSound() {
+    return this.playSound('deal');
+  }
+  
+  /**
    * 设置所有音效的音量
    * @param {number} volume - 音量值 (0 到 1)
    */
