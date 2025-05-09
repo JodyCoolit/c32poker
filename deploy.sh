@@ -37,6 +37,13 @@ echo "修复日志配置..."
 # 更新前端配置
 ./update_frontend_config.sh "$SERVER_HOST"
 
+# Add this before the Docker Compose section
+echo "Building frontend..."
+cd client
+npm install
+npm run build
+cd ..
+
 # 检查docker compose命令可用性
 if command -v docker &> /dev/null; then
   # 确定docker compose命令
